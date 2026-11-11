@@ -15,6 +15,7 @@
  * new farmer). Do not change SHEETS_SECRET or the web app URL.
  */
 var DEFAULT_SHEET_ID = "1sIDMkUs76cgl8ecBGIOWFIPiofGzwGJI1D3Az6OyDW8";
+var MASTER_PHONE = "923155506704";
 
 function doPost(e) {
   try {
@@ -57,14 +58,35 @@ function masterSs_() {
   return SpreadsheetApp.openById(id || DEFAULT_SHEET_ID);
 }
 
+function isMasterPhone_(phone) {
+  return normalizePhone_(phone) === MASTER_PHONE;
+}
+
+function isMasterSheetId_(id) {
+  return String(id || "").trim() === DEFAULT_SHEET_ID;
+}
+
 function ledgerSs_(body) {
   body = body || {};
-  if (body.sheetId) return SpreadsheetApp.openById(body.sheetId);
-  if (body.sender) {
-    var farmer = findFarmerRow_(normalizePhone_(body.sender));
-    if (farmer && farmer.sheetId) return SpreadsheetApp.openById(farmer.sheetId);
+  var sender = normalizePhone_(body.sender || body.phone);
+  if (body.sheetId) {
+    if (isMasterSheetId_(body.sheetId) && sender && !isMasterPhone_(sender)) {
+      throw new Error("Ledger is number ke liye available nahi.");
+    }
+    return SpreadsheetApp.openById(body.sheetId);
   }
-  return masterSs_();
+  if (sender) {
+    var farmer = findFarmerRow_(sender);
+    if (farmer && farmer.sheetId) {
+      if (isMasterSheetId_(farmer.sheetId) && !isMasterPhone_(sender)) {
+        throw new Error("Ledger is number ke liye available nahi.");
+      }
+      return SpreadsheetApp.openById(farmer.sheetId);
+    }
+    if (isMasterPhone_(sender)) return masterSs_();
+    throw new Error("Farm ka ledger abhi tayyar nahi. Pehle onboarding mukammal karein.");
+  }
+  throw new Error("sheetId or sender required");
 }
 
 function sheet_(ss, name) {
@@ -246,20 +268,23 @@ function findFarmerRow_(phone) {
   var data = pack.data;
   var header = data[0] || [];
   var phoneCol = Math.max(0, headerIndex_(header, "phone"));
-  var idx = findRow_(data, phoneCol, phone);
-  if (idx === -1) return null;
-  var row = data[idx];
-  return {
-    index: idx,
-    row: idx + 1,
-    phone: normalizePhone_(row[0]),
-    sheetId: String(row[1] || ""),
-    name: String(row[2] || ""),
-    farmName: String(row[3] || ""),
-    onboardingState: String(row[4] || ""),
-    allowed: isAllowedFlag_(row[5]),
-    createdAt: String(row[6] || ""),
-  };
+  for (var i = 1; i < data.length; i++) {
+    if (normalizePhone_(data[i][phoneCol]) === phone) {
+      var row = data[i];
+      return {
+        index: i,
+        row: i + 1,
+        phone: phone,
+        sheetId: String(row[1] || ""),
+        name: String(row[2] || ""),
+        farmName: String(row[3] || ""),
+        onboardingState: String(row[4] || ""),
+        allowed: isAllowedFlag_(row[5]),
+        createdAt: String(row[6] || ""),
+      };
+    }
+  }
+  return null;
 }
 
 function farmerJson_(f) {
@@ -381,12 +406,17 @@ function markProcessed_(messageId, sender) {
   return { ok: true };
 }
 
+function isOpenPending_(status) {
+  var s = String(status || "").toLowerCase();
+  return s === "pending" || s === "editing";
+}
+
 function setPending_(body) {
   var ss = masterSs_();
   var sh = sheet_(ss, "Pending");
   var data = sh.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
-    if (String(data[i][0]) === String(body.sender) && String(data[i][4]) === "pending") {
+    if (String(data[i][0]) === String(body.sender) && isOpenPending_(data[i][4])) {
       sh.getRange(i + 1, 5).setValue("superseded");
     }
   }
@@ -395,7 +425,7 @@ function setPending_(body) {
     nowStamp_(),
     body.language || "roman_urdu",
     JSON.stringify(body.entries || []),
-    "pending",
+    body.status === "editing" ? "editing" : "pending",
     body.messageId || "",
   ]);
   return { ok: true };
@@ -404,7 +434,7 @@ function setPending_(body) {
 function getPending_(sender) {
   var data = values_(masterSs_(), "Pending");
   for (var i = data.length - 1; i >= 1; i--) {
-    if (String(data[i][0]) === String(sender) && String(data[i][4]) === "pending") {
+    if (String(data[i][0]) === String(sender) && isOpenPending_(data[i][4])) {
       return {
         ok: true,
         pending: {
@@ -425,7 +455,7 @@ function clearPending_(sender, status) {
   var sh = sheet_(masterSs_(), "Pending");
   var data = sh.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
-    if (String(data[i][0]) === String(sender) && String(data[i][4]) === "pending") {
+    if (String(data[i][0]) === String(sender) && isOpenPending_(data[i][4])) {
       sh.getRange(i + 1, 5).setValue(status || "cancelled");
     }
   }
