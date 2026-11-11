@@ -1,11 +1,11 @@
 const assert = require("assert");
 const { MemorySheets, formatLedgerData, emptyLedger } = require("../lib/sheets");
-const { periodFor, dueBills, dueSoonBills, statementFor, normalizeCycle, calendarMonthPeriod, addDaysISO } = require("../lib/billing");
+const { periodFor, dueBills, dueSoonBills, statementFor, normalizeCycle, inferCycleFromText, calendarMonthPeriod, addDaysISO } = require("../lib/billing");
 const { deriveCow, upcomingEvents, normalizeEventType, attachHealthExpenses } = require("../lib/animals");
-const { applyStockDelta, stockStatus, lowStock, formatStockLine } = require("../lib/feed");
+const { applyStockDelta, stockStatus, lowStock, formatStockLine, applyComputedStock, averageCostPerKg } = require("../lib/feed");
 const { reminderFooter } = require("../lib/reminders");
 const { directQueryReply } = require("../lib/queries");
-const { confirmationText, savedText, CONFIRM_FOOTER, entryLines } = require("../lib/ledger");
+const { confirmationText, savedText, CONFIRM_FOOTER, entryLines, normalizeEditEntries, routeFodderEntries } = require("../lib/ledger");
 const { ASK_CUSTOMERS, customerOnboardLines, needsOnboarding, howToMessage } = require("../lib/onboarding");
 const { migrateStore, refreshDerivedStore } = require("../lib/derived");
 
@@ -17,6 +17,23 @@ async function main() {
   assert.strictEqual(normalizeCycle("hafte baad"), "weekly");
   assert.strictEqual(normalizeCycle("15 din baad"), "biweekly");
   assert.strictEqual(normalizeCycle("mahine baad"), "monthly");
+  assert.strictEqual(inferCycleFromText("aslam monthly"), "monthly");
+  assert.strictEqual(inferCycleFromText("Aslam ab mahina baad dega"), "monthly");
+  assert.strictEqual(inferCycleFromText("hafte baad"), "weekly");
+  assert.strictEqual(inferCycleFromText("15 din baad"), "biweekly");
+  assert.strictEqual(inferCycleFromText("roz"), "daily");
+  const edited = normalizeEditEntries(
+    [{ type: "change_billing_cycle", customer: "Aslam", billing_cycle: "daily", unit: "monthly" }],
+    "aslam monthly"
+  );
+  assert.strictEqual(edited[0].billing_cycle, "monthly");
+  const { applyCycleTextHints } = require("../lib/gemini");
+  const hinted = applyCycleTextHints(
+    [{ type: "change_billing_cycle", customer: "Aslam", billing_cycle: "daily", unit: "monthly" }],
+    "monthly"
+  );
+  assert.strictEqual(hinted[0].billing_cycle, "monthly");
+
   const daily = periodFor("daily", "2026-01-01", "2026-11-11");
   assert.deepStrictEqual(daily, { periodStart: "2026-11-11", periodEnd: "2026-11-11", dueDate: "2026-11-11" });
   const week = periodFor("weekly", "2026-11-03", "2026-11-11");
@@ -44,6 +61,23 @@ async function main() {
   assert.ok(due.some((b) => b.customer === "Aslam" && b.balanceDue === 1900), "Aslam daily bill should be due today");
   const soon = dueSoonBills(customers, sales, payments, "2026-11-11", 2);
   assert.ok(soon.some((b) => b.customer === "Aslam"));
+  const salesWithCash = [
+    ["date", "customer", "litres", "rate_pkr", "amount", "cash_received", "balance_added", "source_note"],
+    ["2026-11-11", "Aslam", 20, 190, 3800, 2000, 1800, ""],
+  ];
+  const monthlyCustomers = [
+    ["name", "phone", "rate_pkr", "opening_balance", "current_balance", "notes", "billing_cycle", "cycle_start_date"],
+    ["Aslam", "", 190, 0, 1800, "", "monthly", "2026-11-01"],
+  ];
+  const stmt = statementFor("Aslam", monthlyCustomers, salesWithCash, payments, "2026-11-11");
+  assert.strictEqual(stmt.periodStart, "2026-11-01");
+  assert.strictEqual(stmt.periodEnd, "2026-11-30");
+  assert.strictEqual(stmt.paid, 2000);
+  assert.strictEqual(stmt.balanceDue, 1800);
+  assert.strictEqual(stmt.status, "open");
+  const monthlyDue = dueBills(monthlyCustomers, salesWithCash, payments, "2026-11-11");
+  assert.ok(monthlyDue.some((b) => b.customer === "Aslam" && b.paid === 2000 && b.balanceDue === 1800));
+
 
   assert.strictEqual(normalizeEventType("Doctor sahab kal Kali ko dekhne aayenge"), "vet_appointment");
   assert.strictEqual(normalizeEventType("Doctor ne Gori ko bukhar bataya"), "vet_visit");
@@ -87,11 +121,37 @@ async function main() {
   assert.strictEqual(status[0].status, "low");
   assert.ok(lowStock(stock, "2026-11-11", 3).length === 1);
   assert.ok(formatStockLine(lowStock(stock, "2026-11-11", 3)).includes("wanda"));
+  const stock2 = [["item", "quantity", "unit", "daily_use", "updated_at", "notes"]];
+  applyStockDelta(stock2, { item: "wanda", quantity: 2, unit: "mann", daily_use: 1, today: "2026-11-11" });
+  applyComputedStock(stock2, "2026-11-11", [
+    ["date", "item", "quantity", "unit", "cost_pkr", "supplier", "cash_paid", "balance_owed", "source_note"],
+    ["2026-11-11", "wanda", 2, "mann", 6000, "Gorakhpur", 6000, 0, ""],
+  ]);
+  const daysIdx = stock2[0].indexOf("days_left");
+  const runIdx = stock2[0].indexOf("run_out_date");
+  const reoIdx = stock2[0].indexOf("reorder_by");
+  const avgIdx = stock2[0].indexOf("avg_cost_per_kg");
+  assert.strictEqual(stock2[1][daysIdx], 2);
+  assert.strictEqual(stock2[1][runIdx], "2026-11-13");
+  assert.strictEqual(stock2[1][reoIdx], "2026-11-10");
+  assert.strictEqual(stock2[1][avgIdx], 75);
+  assert.strictEqual(averageCostPerKg([
+    ["date", "item", "quantity", "unit", "cost_pkr"],
+    ["2026-11-11", "wanda", 2, "mann", 6000],
+  ], "wanda"), 75);
+
 
   const attached = attachHealthExpenses([
     { type: "animal_event", date: "2026-11-11", cow_name: "Gori", event_type: "treatment", cost_pkr: 1500 },
   ]);
   assert.ok(attached.some((e) => e.type === "expense" && e.amount === 1500 && e.category === "animal_health"));
+  const routed = routeFodderEntries([
+    { type: "fodder", date: "2026-11-11", item: "wanda", quantity: 2, unit: "mann", cost_pkr: 6000, cash_paid: 6000, balance_owed: 0 },
+    { type: "expense", category: "feed", date: "", amount: "" },
+  ]);
+  assert.ok(!routed.some((e) => e.type === "expense"));
+  assert.strictEqual(routed.filter((e) => e.type === "fodder").length, 1);
+
 
   const oldStore = {
     Cows: [["cow_id", "name", "type", "breed", "status", "avg_daily_litres", "notes"], ["C-1", "Gori", "cow", "", "milking", 18, ""]],
@@ -150,6 +210,33 @@ async function main() {
   assert.strictEqual(Number(wanda[1]), 6);
   assert.ok(formatLedgerData(recent).includes("Feed_Stock"));
   assert.ok(formatLedgerData(recent).includes("Animal_Events"));
+  const evHeader = recent.animal_events[0];
+  const detIdx = evHeader.indexOf("details");
+  const noteIdx = evHeader.indexOf("source_note");
+  const preg = recent.animal_events.find((r, i) => i > 0 && String(r[evHeader.indexOf("event_type")]) === "pregnancy_check");
+  assert.ok(preg && preg[detIdx] === "gaban hai");
+  const appt = recent.animal_events.find((r, i) => i > 0 && String(r[evHeader.indexOf("event_type")]) === "vet_appointment");
+  assert.ok(appt && !String(appt[detIdx] || "").includes("WhatsApp"));
+  // junk feed expense should not be written
+  const junk = await sheets.commitRecords({
+    sender: phone,
+    sheetId: copy.sheetId,
+    refresh: false,
+    entries: [{ type: "expense", category: "feed", date: "", amount: "" }],
+  });
+  assert.ok(junk.ok);
+  const after = await sheets.readRecent({ days: 60, refresh: false, sender: phone, sheetId: copy.sheetId });
+  assert.ok(!(after.expenses || []).some((r, i) => i > 0 && String(r[1]).toLowerCase() === "feed" && !r[0]));
+  const footerLow = reminderFooter({
+    customers: monthlyCustomers,
+    sales: salesWithCash,
+    payments,
+    cows: recent.cows,
+    animal_events: recent.animal_events,
+    feed_stock: stock2,
+  }, "2026-11-11");
+  assert.ok(/wanda/i.test(footerLow), footerLow);
+
 
   const footer = reminderFooter({
     customers: recent.customers,

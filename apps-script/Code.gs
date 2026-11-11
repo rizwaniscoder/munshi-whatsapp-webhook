@@ -17,6 +17,8 @@
 var DEFAULT_SHEET_ID = "1sIDMkUs76cgl8ecBGIOWFIPiofGzwGJI1D3Az6OyDW8";
 var MASTER_PHONE = "923155506704";
 
+var migratedThisRequest_ = false;
+
 function doPost(e) {
   try {
     if (!e || !e.postData || !e.postData.contents) {
@@ -177,7 +179,7 @@ function periodFor_(cycle, cycleStart, refDate) {
 function tabHeaders_() {
   return {
     Animal_Events: ["date", "cow", "event_type", "details", "doctor_name", "diagnosis", "medicines", "cost_pkr", "next_due_date", "source_note"],
-    Feed_Stock: ["item", "quantity", "unit", "daily_use", "updated_at", "notes"],
+    Feed_Stock: ["item", "quantity", "unit", "daily_use", "updated_at", "notes", "days_left", "run_out_date", "reorder_by", "avg_cost_per_kg"],
     Due_Bills: ["customer", "period_start", "period_end", "due_date", "litres", "amount", "paid", "balance_due", "status"],
     Upcoming_Events: ["date", "cow", "event", "details"]
   };
@@ -242,8 +244,32 @@ function ensureDashboard_(ss) {
   sh.getRange("A45").setFormula('=IFERROR(QUERY(Feed_Stock!A2:D20,"select A, B, C, D",1),"Stock nahi")');
 }
 
+function isSchemaCurrent_(ss) {
+  if (!ss.getSheetByName("Animal_Events")) return false;
+  if (!ss.getSheetByName("Feed_Stock")) return false;
+  if (!ss.getSheetByName("Due_Bills")) return false;
+  if (!ss.getSheetByName("Upcoming_Events")) return false;
+  var feed = ss.getSheetByName("Feed_Stock").getRange(1, 1, 1, Math.max(ss.getSheetByName("Feed_Stock").getLastColumn(), 1)).getValues()[0];
+  if (headerIndex_(feed, "days_left") === -1 || headerIndex_(feed, "avg_cost_per_kg") === -1) return false;
+  var cust = ss.getSheetByName("Customers");
+  if (!cust) return false;
+  var chead = cust.getRange(1, 1, 1, Math.max(cust.getLastColumn(), 1)).getValues()[0];
+  if (headerIndex_(chead, "billing_cycle") === -1) return false;
+  var cows = ss.getSheetByName("Cows");
+  if (cows) {
+    var cowHead = cows.getRange(1, 1, 1, Math.max(cows.getLastColumn(), 1)).getValues()[0];
+    if (headerIndex_(cowHead, "expected_calving") === -1) return false;
+  }
+  return true;
+}
+
 function migrateLedger_(ss) {
   if (!ss) return;
+  if (migratedThisRequest_) return;
+  if (isSchemaCurrent_(ss)) {
+    migratedThisRequest_ = true;
+    return;
+  }
   var tabs = tabHeaders_();
   var name;
   for (name in tabs) {
@@ -254,6 +280,19 @@ function migrateLedger_(ss) {
     if (extra.hasOwnProperty(name)) ensureColumns_(ss, name, extra[name]);
   }
   ensureDashboard_(ss);
+  var due = ss.getSheetByName("Due_Bills");
+  if (due) due.getRange("B:D").setNumberFormat("yyyy-mm-dd");
+  var feedSh = ss.getSheetByName("Feed_Stock");
+  if (feedSh) {
+    var h = feedSh.getRange(1, 1, 1, Math.max(feedSh.getLastColumn(), 1)).getValues()[0];
+    var runIdx = headerIndex_(h, "run_out_date");
+    var reoIdx = headerIndex_(h, "reorder_by");
+    var updIdx = headerIndex_(h, "updated_at");
+    if (runIdx !== -1) feedSh.getRange(1, runIdx + 1, feedSh.getMaxRows(), 1).setNumberFormat("yyyy-mm-dd");
+    if (reoIdx !== -1) feedSh.getRange(1, reoIdx + 1, feedSh.getMaxRows(), 1).setNumberFormat("yyyy-mm-dd");
+    if (updIdx !== -1) feedSh.getRange(1, updIdx + 1, feedSh.getMaxRows(), 1).setNumberFormat("yyyy-mm-dd");
+  }
+  migratedThisRequest_ = true;
 }
 
 function normalizeEventType_(raw) {
@@ -388,6 +427,7 @@ function statementFor_(ss, customerName, today) {
   var rate = rateIdx === -1 ? 0 : parseAmount_(row[rateIdx]);
   var litres = 0;
   var amount = 0;
+  var paid = 0;
   var i;
   for (i = 1; i < sales.length; i++) {
     if (String(sales[i][1] || "").toLowerCase() !== String(customerName).toLowerCase()) continue;
@@ -395,9 +435,11 @@ function statementFor_(ss, customerName, today) {
     if (d < period.periodStart || d > period.periodEnd) continue;
     litres += parseAmount_(sales[i][2]);
     amount += parseAmount_(sales[i][4]);
+    paid += parseAmount_(sales[i][5]);
   }
   if (!amount && litres && rate) amount = litres * rate;
-  var paid = 0;
+  var paidFromSales = paid;
+  paid = paidFromSales;
   for (i = 1; i < payments.length; i++) {
     if (String(payments[i][1] || "").toLowerCase() !== String(customerName).toLowerCase()) continue;
     var pd = cellDate_(payments[i][0]);
@@ -421,6 +463,7 @@ function statementFor_(ss, customerName, today) {
 
 function refreshDerived_(ss) {
   migrateLedger_(ss);
+  refreshFeedStock_(ss);
   var today = todayISO_();
   var customers = values_(ss, "Customers");
   var dueSh = sheet_(ss, "Due_Bills");
@@ -431,7 +474,7 @@ function refreshDerived_(ss) {
   for (i = 1; i < customers.length; i++) {
     if (!customers[i][0]) continue;
     var bill = statementFor_(ss, customers[i][0], today);
-    if (!bill || !(bill.balanceDue > 0 && today >= bill.dueDate)) continue;
+    if (!bill || !(bill.balanceDue > 0)) continue;
     dueSh.getRange(r, 1, 1, 9).setValues([[bill.customer, bill.periodStart, bill.periodEnd, bill.dueDate, bill.litres, bill.amount, bill.paid, bill.balanceDue, bill.status]]);
     r++;
   }
@@ -441,6 +484,72 @@ function refreshDerived_(ss) {
   if (last > 1) upSh.getRange(2, 1, last - 1, Math.max(upSh.getLastColumn(), 4)).clearContent();
   if (upcoming.length) {
     upSh.getRange(2, 1, upcoming.length, 4).setValues(upcoming);
+  }
+}
+
+
+function toKg_(quantity, unit) {
+  var qty = Number(quantity) || 0;
+  var u = String(unit || "").toLowerCase();
+  if (u === "mann" || u === "man" || u === "mun") return qty * 40;
+  if (u === "kg" || u === "kilo" || u === "kgs") return qty;
+  return 0;
+}
+
+function averageCostPerKg_(ss, item) {
+  var fodder = values_(ss, "Fodder");
+  var needle = fodderItemName_(item);
+  var cost = 0;
+  var kg = 0;
+  var i;
+  for (i = 1; i < fodder.length; i++) {
+    if (fodderItemName_(fodder[i][1]) !== needle) continue;
+    var converted = toKg_(fodder[i][2], fodder[i][3]);
+    var rowCost = parseAmount_(fodder[i][4]);
+    if (converted > 0 && rowCost > 0) {
+      kg += converted;
+      cost += rowCost;
+    }
+  }
+  if (!kg) return "";
+  return Math.round((cost / kg) * 100) / 100;
+}
+
+function refreshFeedStock_(ss) {
+  migrateLedger_(ss);
+  var sh = sheet_(ss, "Feed_Stock");
+  var data = values_(ss, "Feed_Stock");
+  var header = data[0] || [];
+  var qtyIdx = headerIndex_(header, "quantity");
+  var useIdx = headerIndex_(header, "daily_use");
+  var daysIdx = headerIndex_(header, "days_left");
+  var runIdx = headerIndex_(header, "run_out_date");
+  var reoIdx = headerIndex_(header, "reorder_by");
+  var avgIdx = headerIndex_(header, "avg_cost_per_kg");
+  var today = todayISO_();
+  var i;
+  for (i = 1; i < data.length; i++) {
+    if (!data[i][0]) continue;
+    var qty = parseAmount_(data[i][qtyIdx === -1 ? 1 : qtyIdx]);
+    var daily = parseAmount_(data[i][useIdx === -1 ? 3 : useIdx]);
+    var row = i + 1;
+    var daysLeft = "";
+    var runOut = "";
+    var reorder = "";
+    if (daily > 0) {
+      daysLeft = Math.floor(qty / daily);
+      if (daysLeft < 0) daysLeft = 0;
+      runOut = addDaysISO_(today, daysLeft);
+      reorder = addDaysISO_(runOut, -3);
+    } else if (qty <= 0) {
+      daysLeft = 0;
+      runOut = today;
+      reorder = today;
+    }
+    if (daysIdx !== -1) sh.getRange(row, daysIdx + 1).setValue(daysLeft);
+    if (runIdx !== -1) sh.getRange(row, runIdx + 1).setValue(runOut);
+    if (reoIdx !== -1) sh.getRange(row, reoIdx + 1).setValue(reorder);
+    if (avgIdx !== -1) sh.getRange(row, avgIdx + 1).setValue(averageCostPerKg_(ss, data[i][0]));
   }
 }
 
@@ -517,7 +626,7 @@ function appendAnimalEvent_(ss, entry, note) {
   setCol("date", entry.date);
   setCol("cow", entry.cow_name || entry.cow || "all");
   setCol("event_type", typ);
-  setCol("details", entry.details || entry.notes || note);
+  setCol("details", entry.details || "");
   setCol("doctor_name", entry.doctor_name || "");
   setCol("diagnosis", entry.diagnosis || "");
   setCol("medicines", entry.medicines || "");
@@ -694,6 +803,8 @@ function setLastWrite_(ss, tab, row, type, summary) {
 }
 
 function handle_(body) {
+  migratedThisRequest_ = false;
+  var started = Date.now();
   var action = body.action;
   if (action === "ping") return { ok: true, multiTenant: true };
   if (action === "getFarmer") return getFarmer_(body.phone || body.sender);
@@ -708,7 +819,11 @@ function handle_(body) {
   var ss = ledgerSs_(body);
   if (action === "getContext") return getContext_(ss);
   if (action === "commitRecords") return commitRecords_(ss, body);
-  if (action === "readRecent") return readRecent_(ss, body.days || 30);
+  if (action === "readRecent") return readRecent_(ss, body.days || 30, body.refresh);
+  if (action === "refreshDerived") {
+    refreshDerived_(ss);
+    return { ok: true, refreshed: true, elapsedMs: Date.now() - started };
+  }
   return { ok: false, error: "unknown action" };
 }
 
@@ -926,7 +1041,7 @@ function clearPending_(sender, status) {
 
 function isFodderCategory_(category) {
   var c = String(category || "").toLowerCase();
-  return /(chara|chaara|charay|wanda|bhoosa|toori|silage|khal|fodder|^feed$|green fodder|hara chara)/.test(c);
+  return /\b(chara|chaara|charay|wanda|bhoosa|toori|silage|khal|fodder|green fodder|hara chara|khoraak|khurak|feed)\b/.test(c);
 }
 
 function fodderItemName_(raw) {
@@ -953,6 +1068,7 @@ function normalizeAnimalType_(raw) {
 }
 
 function commitRecords_(ss, body) {
+  var started = Date.now();
   var entries = body.entries || [];
   var note = body.sourceNote || ("WhatsApp " + (body.sender || ""));
   var saved = 0;
@@ -963,12 +1079,12 @@ function commitRecords_(ss, body) {
       saved++;
       last = result;
     } else if (result && result.error) {
-      return { ok: false, error: result.error, saved: saved };
+      return { ok: false, error: result.error, saved: saved, elapsedMs: Date.now() - started };
     }
   }
-  refreshDerived_(ss);
+  if (body.refresh !== false) refreshDerived_(ss);
   clearPending_(body.sender, "saved");
-  return { ok: true, saved: saved, lastWrite: last || null };
+  return { ok: true, saved: saved, lastWrite: last || null, elapsedMs: Date.now() - started };
 }
 
 function commitOne_(ss, entry, note) {
@@ -1029,6 +1145,27 @@ function commitOne_(ss, entry, note) {
     return { ok: true, sheet: "Payments", row: row };
   }
   if (entry.type === "expense") {
+    if (isFodderCategory_(entry.category || entry.item)) {
+      var fodderCost = entry.cost_pkr != null ? entry.cost_pkr : entry.amount;
+      if (!fodderCost && (entry.quantity == null || entry.quantity === "")) {
+        return { ok: true, skipped: true };
+      }
+      entry = {
+        type: "fodder",
+        date: entry.date,
+        item: fodderItemName_(entry.item || entry.category),
+        quantity: entry.quantity == null ? "" : entry.quantity,
+        unit: entry.unit || "",
+        cost_pkr: fodderCost,
+        supplier: entry.supplier || "",
+        cash_paid: entry.cash_paid == null || entry.cash_paid === "" ? 0 : entry.cash_paid,
+        balance_owed: entry.balance_owed,
+        note: entry.note,
+      };
+      return commitOne_(ss, entry, note);
+    }
+    var amt = parseAmount_(entry.amount);
+    if ((!entry.date || entry.date === "") && !amt) return { ok: true, skipped: true };
     var row = append_(ss, "Expenses", [entry.date, entry.category, entry.amount, entry.note || note]);
     setLastWrite_(ss, "Expenses", row, "expense", entry.category + " " + entry.amount);
     return { ok: true, sheet: "Expenses", row: row };
@@ -1292,8 +1429,8 @@ function deleteLast_(ss, note) {
   return { ok: true, sheet: tab, row: row, deleted: true };
 }
 
-function readRecent_(ss, days) {
-  refreshDerived_(ss);
+function readRecent_(ss, days, refresh) {
+  if (refresh === true) refreshDerived_(ss);
   var cutoff = todayMinus_(days);
   return {
     ok: true,
