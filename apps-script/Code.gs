@@ -69,25 +69,467 @@ function isMasterSheetId_(id) {
 function ledgerSs_(body) {
   body = body || {};
   var sender = normalizePhone_(body.sender || body.phone);
+  var ss = null;
   if (body.sheetId) {
     if (isMasterSheetId_(body.sheetId) && sender && !isMasterPhone_(sender)) {
       throw new Error("Ledger is number ke liye available nahi.");
     }
-    return SpreadsheetApp.openById(body.sheetId);
-  }
-  if (sender) {
+    ss = SpreadsheetApp.openById(body.sheetId);
+  } else if (sender) {
     var farmer = findFarmerRow_(sender);
     if (farmer && farmer.sheetId) {
       if (isMasterSheetId_(farmer.sheetId) && !isMasterPhone_(sender)) {
         throw new Error("Ledger is number ke liye available nahi.");
       }
-      return SpreadsheetApp.openById(farmer.sheetId);
+      ss = SpreadsheetApp.openById(farmer.sheetId);
+    } else if (isMasterPhone_(sender)) {
+      ss = masterSs_();
+    } else {
+      throw new Error("Farm ka ledger abhi tayyar nahi. Pehle onboarding mukammal karein.");
     }
-    if (isMasterPhone_(sender)) return masterSs_();
-    throw new Error("Farm ka ledger abhi tayyar nahi. Pehle onboarding mukammal karein.");
+  } else {
+    throw new Error("sheetId or sender required");
   }
-  throw new Error("sheetId or sender required");
+  migrateLedger_(ss);
+  return ss;
 }
+
+function todayISO_() {
+  return Utilities.formatDate(new Date(), "Asia/Karachi", "yyyy-MM-dd");
+}
+
+function addDaysISO_(iso, days) {
+  var parts = String(iso || todayISO_()).slice(0, 10).split("-");
+  var dt = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]) + Number(days)));
+  return Utilities.formatDate(dt, "UTC", "yyyy-MM-dd");
+}
+
+function daysBetween_(a, b) {
+  var pa = String(a).slice(0, 10).split("-");
+  var pb = String(b).slice(0, 10).split("-");
+  var ua = Date.UTC(Number(pa[0]), Number(pa[1]) - 1, Number(pa[2]));
+  var ub = Date.UTC(Number(pb[0]), Number(pb[1]) - 1, Number(pb[2]));
+  return Math.round((ub - ua) / 86400000);
+}
+
+function normalizeCycle_(raw) {
+  var t = String(raw || "").trim().toLowerCase();
+  if (!t) return "daily";
+  if (/(do\s*hafta|bi-?week|fortnight|15\s*din|pandrah)/i.test(t)) return "biweekly";
+  if (/(hafte|hafta|week|weekly)/i.test(t)) return "weekly";
+  if (/(mahine|mahina|month|monthly)/i.test(t)) return "monthly";
+  if (/(roz|daily|har din|rozana)/i.test(t)) return "daily";
+  if (t === "daily" || t === "weekly" || t === "biweekly" || t === "monthly") return t;
+  return "daily";
+}
+
+function clampDay_(year, month, day) {
+  var last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return Math.min(day, last);
+}
+
+function monthlyPeriod_(ref, billingDay) {
+  var p = String(ref).slice(0, 10).split("-");
+  var y = Number(p[0]);
+  var m = Number(p[1]);
+  var d = Number(p[2]);
+  var day = billingDay || 1;
+  if (d >= day) {
+    var start = y + "-" + pad2_(m) + "-" + pad2_(clampDay_(y, m, day));
+    var ny = y;
+    var nm = m + 1;
+    if (nm > 12) { nm = 1; ny += 1; }
+    var end = addDaysISO_(ny + "-" + pad2_(nm) + "-" + pad2_(clampDay_(ny, nm, day)), -1);
+    return { periodStart: start, periodEnd: end, dueDate: end };
+  }
+  var py = y;
+  var pm = m - 1;
+  if (pm < 1) { pm = 12; py -= 1; }
+  var start2 = py + "-" + pad2_(pm) + "-" + pad2_(clampDay_(py, pm, day));
+  var end2 = addDaysISO_(y + "-" + pad2_(m) + "-" + pad2_(clampDay_(y, m, day)), -1);
+  return { periodStart: start2, periodEnd: end2, dueDate: end2 };
+}
+
+function pad2_(n) {
+  return (n < 10 ? "0" : "") + n;
+}
+
+function periodFor_(cycle, cycleStart, refDate) {
+  var today = String(refDate || todayISO_()).slice(0, 10);
+  var cyc = normalizeCycle_(cycle);
+  var anchor = String(cycleStart || today).slice(0, 10);
+  if (cyc === "daily") return { periodStart: today, periodEnd: today, dueDate: today };
+  if (cyc === "monthly") {
+    var day = Number(String(anchor).slice(8, 10)) || 1;
+    return monthlyPeriod_(today, day);
+  }
+  var length = cyc === "biweekly" ? 14 : 7;
+  var offset = daysBetween_(anchor, today);
+  if (offset < 0) {
+    return { periodStart: anchor, periodEnd: addDaysISO_(anchor, length - 1), dueDate: addDaysISO_(anchor, length - 1) };
+  }
+  var index = Math.floor(offset / length);
+  var start = addDaysISO_(anchor, index * length);
+  var end = addDaysISO_(start, length - 1);
+  return { periodStart: start, periodEnd: end, dueDate: end };
+}
+
+function tabHeaders_() {
+  return {
+    Animal_Events: ["date", "cow", "event_type", "details", "doctor_name", "diagnosis", "medicines", "cost_pkr", "next_due_date", "source_note"],
+    Feed_Stock: ["item", "quantity", "unit", "daily_use", "updated_at", "notes"],
+    Due_Bills: ["customer", "period_start", "period_end", "due_date", "litres", "amount", "paid", "balance_due", "status"],
+    Upcoming_Events: ["date", "cow", "event", "details"]
+  };
+}
+
+function extraColumns_() {
+  return {
+    Customers: ["billing_cycle", "cycle_start_date"],
+    Cows: ["last_insemination", "pregnancy_status", "expected_calving", "dry_off_due", "pregnancy_check_due"]
+  };
+}
+
+function ensureTab_(ss, name, headers) {
+  var sh = ss.getSheetByName(name);
+  if (!sh) sh = ss.insertSheet(name);
+  var lastCol = Math.max(sh.getLastColumn(), 1);
+  var existing = sh.getRange(1, 1, 1, lastCol).getValues()[0] || [];
+  var empty = true;
+  var i;
+  for (i = 0; i < existing.length; i++) {
+    if (String(existing[i] || "").trim()) { empty = false; break; }
+  }
+  if (empty) {
+    sh.getRange(1, 1, 1, headers.length).setValues([headers]);
+    return sh;
+  }
+  var missing = [];
+  for (i = 0; i < headers.length; i++) {
+    if (headerIndex_(existing, headers[i]) === -1) missing.push(headers[i]);
+  }
+  if (missing.length) {
+    sh.getRange(1, existing.length + 1, 1, missing.length).setValues([missing]);
+  }
+  return sh;
+}
+
+function ensureColumns_(ss, tab, cols) {
+  var sh = ss.getSheetByName(tab);
+  if (!sh) return;
+  var lastCol = Math.max(sh.getLastColumn(), 1);
+  var existing = sh.getRange(1, 1, 1, lastCol).getValues()[0] || [];
+  var missing = [];
+  var i;
+  for (i = 0; i < cols.length; i++) {
+    if (headerIndex_(existing, cols[i]) === -1) missing.push(cols[i]);
+  }
+  if (missing.length) {
+    sh.getRange(1, existing.length + 1, 1, missing.length).setValues([missing]);
+  }
+}
+
+function ensureDashboard_(ss) {
+  var sh = ss.getSheetByName("Dashboard");
+  if (!sh) return;
+  var label = String(sh.getRange("A26").getValue() || "");
+  if (/due bills/i.test(label)) return;
+  sh.getRange("A26").setValue("DUE BILLS");
+  sh.getRange("A27").setFormula('=IFERROR(QUERY(Due_Bills!A2:I50,"select A, D, H, I where H > 0 order by D",1),"Koi bill due nahi")');
+  sh.getRange("A34").setValue("UPCOMING (30 DAYS)");
+  sh.getRange("A35").setFormula('=IFERROR(QUERY(Upcoming_Events!A2:D50,"select A, B, C, D order by A",1),"Koi event nahi")');
+  sh.getRange("A44").setValue("FEED STOCK");
+  sh.getRange("A45").setFormula('=IFERROR(QUERY(Feed_Stock!A2:D20,"select A, B, C, D",1),"Stock nahi")');
+}
+
+function migrateLedger_(ss) {
+  if (!ss) return;
+  var tabs = tabHeaders_();
+  var name;
+  for (name in tabs) {
+    if (tabs.hasOwnProperty(name)) ensureTab_(ss, name, tabs[name]);
+  }
+  var extra = extraColumns_();
+  for (name in extra) {
+    if (extra.hasOwnProperty(name)) ensureColumns_(ss, name, extra[name]);
+  }
+  ensureDashboard_(ss);
+}
+
+function normalizeEventType_(raw) {
+  var t = String(raw || "").trim().toLowerCase();
+  if (/(vet_appointment|appointment|dekhne aay|aayenge|aayega)/.test(t) && /(doctor|daktar|vet|appointment)/.test(t)) return "vet_appointment";
+  if (t === "vet_appointment") return "vet_appointment";
+  if (t === "vet_visit" || (/(doctor|daktar|vet)/.test(t) && /(visit|dekha|bataya|aaye)/.test(t))) return "vet_visit";
+  if (/(inseminat|ai\b|artificial|pucca teeka|semen)/.test(t)) return "insemination";
+  if (/(natural service|natural|saand)/.test(t)) return "natural_service";
+  if (/(pregnancy.?check|check karaya|gaban check)/.test(t)) return "pregnancy_check";
+  if (/(calving|bachha|bacha diya|calved|bya)/.test(t)) return "calving";
+  if (/(dry.?off|soye|sukh|dry off)/.test(t)) return "dry_off";
+  if (/(heat|garmi)/.test(t)) return "heat";
+  if (/(vaccin|teeka)/.test(t) && !/(pucca|ai|semen)/.test(t)) return "vaccination";
+  if (/(treatment|dawai|medicine|injection|sui|ilaaj)/.test(t)) return "treatment";
+  if (t) return t.replace(/\s+/g, "_");
+  return "other";
+}
+
+function cowNameCol_(header) {
+  var idx = headerIndex_(header, "name");
+  return idx === -1 ? 1 : idx;
+}
+
+function deriveAndUpcoming_(ss, today) {
+  var cows = values_(ss, "Cows");
+  var events = values_(ss, "Animal_Events");
+  var cHeader = cows[0] || [];
+  var eHeader = events[0] || [];
+  var nameCol = cowNameCol_(cHeader);
+  var typeCol = headerIndex_(cHeader, "type");
+  var lastInsemCol = headerIndex_(cHeader, "last_insemination");
+  var pregCol = headerIndex_(cHeader, "pregnancy_status");
+  var calvCol = headerIndex_(cHeader, "expected_calving");
+  var dryCol = headerIndex_(cHeader, "dry_off_due");
+  var checkCol = headerIndex_(cHeader, "pregnancy_check_due");
+  var evDate = headerIndex_(eHeader, "date"); if (evDate === -1) evDate = 0;
+  var evCow = headerIndex_(eHeader, "cow"); if (evCow === -1) evCow = 1;
+  var evType = headerIndex_(eHeader, "event_type"); if (evType === -1) evType = 2;
+  var evDetails = headerIndex_(eHeader, "details"); if (evDetails === -1) evDetails = 3;
+  var evDoc = headerIndex_(eHeader, "doctor_name");
+  var evNext = headerIndex_(eHeader, "next_due_date"); if (evNext === -1) evNext = 8;
+  var upcoming = [];
+  var i;
+  var sh = sheet_(ss, "Cows");
+  for (i = 1; i < cows.length; i++) {
+    var cowName = String(cows[i][nameCol] || "");
+    if (!cowName) continue;
+    var animalType = typeCol === -1 ? "cow" : String(cows[i][typeCol] || "cow");
+    var gest = /buffalo|bhains/i.test(animalType) ? 310 : 283;
+    var lastInsem = "";
+    var status = "open";
+    var expected = "";
+    var dryDue = "";
+    var checkDue = "";
+    var evs = [];
+    var j;
+    for (j = 1; j < events.length; j++) {
+      if (String(events[j][evCow] || "").toLowerCase() !== cowName.toLowerCase()) continue;
+      evs.push(events[j]);
+    }
+    evs.sort(function (a, b) { return String(cellDate_(a[evDate])).localeCompare(String(cellDate_(b[evDate]))); });
+    for (j = 0; j < evs.length; j++) {
+      var typ = normalizeEventType_(evs[j][evType]);
+      var dt = cellDate_(evs[j][evDate]);
+      if (typ === "insemination" || typ === "natural_service") {
+        lastInsem = dt;
+        status = "bred";
+        expected = addDaysISO_(dt, gest);
+        dryDue = addDaysISO_(expected, -60);
+        checkDue = addDaysISO_(dt, 60);
+      } else if (typ === "pregnancy_check") {
+        var result = String(evs[j][evDetails] || "").toLowerCase();
+        if (/(neg|nahi|open|not pregnant|negative)/.test(result)) {
+          status = "open"; expected = ""; dryDue = "";
+        } else if (/(pos|gaban|pregnant|positive|hai)/.test(result)) {
+          status = "pregnant";
+          if (lastInsem) {
+            expected = addDaysISO_(lastInsem, gest);
+            dryDue = addDaysISO_(expected, -60);
+          }
+        }
+      } else if (typ === "calving") {
+        status = "open"; expected = ""; dryDue = ""; checkDue = ""; lastInsem = lastInsem;
+      } else if (typ === "dry_off") {
+        if (status === "pregnant") status = "dry";
+      }
+    }
+    var row = i + 1;
+    if (lastInsemCol !== -1) sh.getRange(row, lastInsemCol + 1).setValue(lastInsem);
+    if (pregCol !== -1) sh.getRange(row, pregCol + 1).setValue(status);
+    if (calvCol !== -1) sh.getRange(row, calvCol + 1).setValue(expected);
+    if (dryCol !== -1) sh.getRange(row, dryCol + 1).setValue(dryDue);
+    if (checkCol !== -1) sh.getRange(row, checkCol + 1).setValue(checkDue);
+    var horizon = addDaysISO_(today, 30);
+    function pushUp(date, event, details) {
+      if (date && date >= today && date <= horizon) upcoming.push([date, cowName, event, details || ""]);
+    }
+    pushUp(checkDue, "pregnancy_check", "check due");
+    pushUp(dryDue, "dry_off", "soye / dry off due");
+    pushUp(expected, "calving", "expected calving");
+  }
+  for (i = 1; i < events.length; i++) {
+    var typ2 = normalizeEventType_(events[i][evType]);
+    var due = evNext !== -1 ? cellDate_(events[i][evNext]) : "";
+    var scheduled = typ2 === "vet_appointment" ? cellDate_(events[i][evDate]) : "";
+    var dates = [due, scheduled];
+    var d;
+    for (d = 0; d < dates.length; d++) {
+      if (dates[d] && dates[d] >= today && dates[d] <= addDaysISO_(today, 30)) {
+        var details = [evDoc !== -1 ? events[i][evDoc] : "", events[i][evDetails]].filter(function (x) { return x; }).join(" - ");
+        upcoming.push([dates[d], events[i][evCow] || "all", typ2, details]);
+      }
+    }
+  }
+  return upcoming;
+}
+
+function statementFor_(ss, customerName, today) {
+  var customers = values_(ss, "Customers");
+  var sales = values_(ss, "Sales");
+  var payments = values_(ss, "Payments");
+  var header = customers[0] || [];
+  var idx = findRow_(customers, 0, customerName);
+  if (idx === -1) return null;
+  var row = customers[idx];
+  var cycle = normalizeCycle_(headerIndex_(header, "billing_cycle") === -1 ? "daily" : row[headerIndex_(header, "billing_cycle")]);
+  var startIdx = headerIndex_(header, "cycle_start_date");
+  var cycleStart = startIdx === -1 ? "" : cellDate_(row[startIdx]);
+  var period = periodFor_(cycle, cycleStart, today);
+  var rateIdx = headerIndex_(header, "rate_pkr");
+  var rate = rateIdx === -1 ? 0 : parseAmount_(row[rateIdx]);
+  var litres = 0;
+  var amount = 0;
+  var i;
+  for (i = 1; i < sales.length; i++) {
+    if (String(sales[i][1] || "").toLowerCase() !== String(customerName).toLowerCase()) continue;
+    var d = cellDate_(sales[i][0]);
+    if (d < period.periodStart || d > period.periodEnd) continue;
+    litres += parseAmount_(sales[i][2]);
+    amount += parseAmount_(sales[i][4]);
+  }
+  if (!amount && litres && rate) amount = litres * rate;
+  var paid = 0;
+  for (i = 1; i < payments.length; i++) {
+    if (String(payments[i][1] || "").toLowerCase() !== String(customerName).toLowerCase()) continue;
+    var pd = cellDate_(payments[i][0]);
+    if (pd < period.periodStart || pd > period.periodEnd) continue;
+    paid += parseAmount_(payments[i][2]);
+  }
+  var balanceDue = Math.round((amount - paid) * 100) / 100;
+  var status = balanceDue > 0 && today >= period.dueDate ? "due" : (balanceDue > 0 ? "open" : "paid");
+  return {
+    customer: row[0],
+    periodStart: period.periodStart,
+    periodEnd: period.periodEnd,
+    dueDate: period.dueDate,
+    litres: litres,
+    amount: amount,
+    paid: paid,
+    balanceDue: balanceDue,
+    status: status
+  };
+}
+
+function refreshDerived_(ss) {
+  migrateLedger_(ss);
+  var today = todayISO_();
+  var customers = values_(ss, "Customers");
+  var dueSh = sheet_(ss, "Due_Bills");
+  var last = dueSh.getLastRow();
+  if (last > 1) dueSh.getRange(2, 1, last - 1, Math.max(dueSh.getLastColumn(), 9)).clearContent();
+  var i;
+  var r = 2;
+  for (i = 1; i < customers.length; i++) {
+    if (!customers[i][0]) continue;
+    var bill = statementFor_(ss, customers[i][0], today);
+    if (!bill || !(bill.balanceDue > 0 && today >= bill.dueDate)) continue;
+    dueSh.getRange(r, 1, 1, 9).setValues([[bill.customer, bill.periodStart, bill.periodEnd, bill.dueDate, bill.litres, bill.amount, bill.paid, bill.balanceDue, bill.status]]);
+    r++;
+  }
+  var upcoming = deriveAndUpcoming_(ss, today);
+  var upSh = sheet_(ss, "Upcoming_Events");
+  last = upSh.getLastRow();
+  if (last > 1) upSh.getRange(2, 1, last - 1, Math.max(upSh.getLastColumn(), 4)).clearContent();
+  if (upcoming.length) {
+    upSh.getRange(2, 1, upcoming.length, 4).setValues(upcoming);
+  }
+}
+
+function applyStockDelta_(ss, item, quantity, unit, dailyUse, notes, today) {
+  migrateLedger_(ss);
+  var sh = sheet_(ss, "Feed_Stock");
+  var data = values_(ss, "Feed_Stock");
+  var header = data[0] || [];
+  var name = fodderItemName_(item || "other");
+  var idx = findRow_(data, 0, name);
+  var qtyIdx = headerIndex_(header, "quantity"); if (qtyIdx === -1) qtyIdx = 1;
+  var unitIdx = headerIndex_(header, "unit");
+  var useIdx = headerIndex_(header, "daily_use");
+  var updIdx = headerIndex_(header, "updated_at");
+  var noteIdx = headerIndex_(header, "notes");
+  if (idx === -1) {
+    var rowVals = [];
+    var c;
+    for (c = 0; c < Math.max(header.length, 6); c++) rowVals[c] = "";
+    rowVals[0] = name;
+    rowVals[qtyIdx] = Number(quantity) || 0;
+    if (unit && unitIdx !== -1) rowVals[unitIdx] = unit;
+    if (dailyUse != null && dailyUse !== "" && useIdx !== -1) rowVals[useIdx] = dailyUse;
+    if (updIdx !== -1) rowVals[updIdx] = today || todayISO_();
+    if (notes && noteIdx !== -1) rowVals[noteIdx] = notes;
+    sh.appendRow(rowVals);
+    return sh.getLastRow();
+  }
+  var row = idx + 1;
+  var current = parseAmount_(sh.getRange(row, qtyIdx + 1).getValue());
+  if (quantity != null && quantity !== "") {
+    sh.getRange(row, qtyIdx + 1).setValue(Math.round((current + Number(quantity)) * 1000) / 1000);
+  }
+  if (unit && unitIdx !== -1 && !sh.getRange(row, unitIdx + 1).getValue()) sh.getRange(row, unitIdx + 1).setValue(unit);
+  if (dailyUse != null && dailyUse !== "" && useIdx !== -1) sh.getRange(row, useIdx + 1).setValue(dailyUse);
+  if (updIdx !== -1) sh.getRange(row, updIdx + 1).setValue(today || todayISO_());
+  if (notes && noteIdx !== -1) appendNote_(sh, row, noteIdx + 1, notes);
+  return row;
+}
+
+function changeBillingCycle_(ss, entry, note) {
+  var sh = sheet_(ss, "Customers");
+  var data = values_(ss, "Customers");
+  var header = data[0] || [];
+  var idx = findRow_(data, 0, entry.customer);
+  if (idx === -1) return { error: "Customer nahi mila: " + entry.customer };
+  var row = idx + 1;
+  var cycleIdx = headerIndex_(header, "billing_cycle");
+  var startIdx = headerIndex_(header, "cycle_start_date");
+  var notesIdx = headerIndex_(header, "notes");
+  var prev = cycleIdx === -1 ? "" : data[idx][cycleIdx];
+  if (cycleIdx !== -1) sh.getRange(row, cycleIdx + 1).setValue(normalizeCycle_(entry.billing_cycle));
+  if (startIdx !== -1) {
+    if (entry.cycle_start_date) sh.getRange(row, startIdx + 1).setValue(entry.cycle_start_date);
+    else if (!data[idx][startIdx]) sh.getRange(row, startIdx + 1).setValue(todayISO_());
+  }
+  if (notesIdx !== -1) appendNote_(sh, row, notesIdx + 1, "cycle " + prev + " -> " + normalizeCycle_(entry.billing_cycle) + " (" + note + ")");
+  setLastWrite_(ss, "Customers", row, "change_billing_cycle", entry.customer + " " + entry.billing_cycle);
+  return { ok: true, sheet: "Customers", row: row };
+}
+
+function appendAnimalEvent_(ss, entry, note) {
+  migrateLedger_(ss);
+  var typ = entry.event_type || entry.type;
+  var sh = sheet_(ss, "Animal_Events");
+  var header = values_(ss, "Animal_Events")[0] || [];
+  var rowVals = [];
+  var c;
+  for (c = 0; c < Math.max(header.length, 10); c++) rowVals[c] = "";
+  function setCol(name, val) {
+    var i = headerIndex_(header, name);
+    if (i !== -1) rowVals[i] = val == null ? "" : val;
+  }
+  setCol("date", entry.date);
+  setCol("cow", entry.cow_name || entry.cow || "all");
+  setCol("event_type", typ);
+  setCol("details", entry.details || entry.notes || note);
+  setCol("doctor_name", entry.doctor_name || "");
+  setCol("diagnosis", entry.diagnosis || "");
+  setCol("medicines", entry.medicines || "");
+  setCol("cost_pkr", entry.cost_pkr != null ? entry.cost_pkr : (entry.fee_pkr != null ? entry.fee_pkr : ""));
+  setCol("next_due_date", entry.next_due_date || entry.next_appointment_date || "");
+  setCol("source_note", entry.note || note);
+  sh.appendRow(rowVals);
+  var row = sh.getLastRow();
+  setLastWrite_(ss, "Animal_Events", row, typ, (entry.cow_name || entry.cow || "all") + " " + typ);
+  return { ok: true, sheet: "Animal_Events", row: row };
+}
+
 
 function sheet_(ss, name) {
   var sh = ss.getSheetByName(name);
@@ -189,7 +631,7 @@ function balanceFormula_(row, openingCol) {
   );
 }
 
-function upsertCustomer_(ss, name, phone, rate, opening) {
+function upsertCustomer_(ss, name, phone, rate, opening, cycle, cycleStart) {
   var sh = sheet_(ss, "Customers");
   var data = sh.getDataRange().getValues();
   var header = data[0] || [];
@@ -209,6 +651,7 @@ function upsertCustomer_(ss, name, phone, rate, opening) {
     sh.appendRow(rowVals);
     var row = sh.getLastRow();
     sh.getRange(row, balCol + 1).setFormula(balanceFormula_(row, openCol));
+    applyCustomerCycle_(sh, header, row, cycle, cycleStart, true);
     return;
   }
   var row = idx + 1;
@@ -221,6 +664,20 @@ function upsertCustomer_(ss, name, phone, rate, opening) {
   }
   if (!sh.getRange(row, balCol + 1).getFormula()) {
     sh.getRange(row, balCol + 1).setFormula(balanceFormula_(row, openCol));
+  }
+  applyCustomerCycle_(sh, header, row, cycle, cycleStart, false);
+}
+
+function applyCustomerCycle_(sh, header, row, cycle, cycleStart, isNew) {
+  var cycleCol = headerIndex_(header, "billing_cycle");
+  var startCol = headerIndex_(header, "cycle_start_date");
+  if (cycleCol !== -1) {
+    if (cycle) sh.getRange(row, cycleCol + 1).setValue(normalizeCycle_(cycle));
+    else if (isNew) sh.getRange(row, cycleCol + 1).setValue("daily");
+  }
+  if (startCol !== -1) {
+    if (cycleStart) sh.getRange(row, startCol + 1).setValue(cycleStart);
+    else if (isNew && !sh.getRange(row, startCol + 1).getValue()) sh.getRange(row, startCol + 1).setValue(todayISO_());
   }
 }
 
@@ -359,7 +816,8 @@ function copyLedger_(body) {
   var ss = SpreadsheetApp.openById(copy.getId());
   var farmers = ss.getSheetByName("Farmers");
   if (farmers) ss.deleteSheet(farmers);
-  var tabs = ["Milk_Log", "Sales", "Payments", "Expenses", "Fodder", "Pending", "Processed_Ids", "Last_Write", "Cows", "Customers"];
+  migrateLedger_(ss);
+  var tabs = ["Milk_Log", "Sales", "Payments", "Expenses", "Fodder", "Pending", "Processed_Ids", "Last_Write", "Cows", "Customers", "Animal_Events", "Feed_Stock", "Due_Bills", "Upcoming_Events"];
   for (var i = 0; i < tabs.length; i++) clearData_(ss, tabs[i]);
   if (body.phone) {
     upsertFarmer_({
@@ -371,16 +829,20 @@ function copyLedger_(body) {
       allowed: body.allowed == null ? true : body.allowed,
     });
   }
+  refreshDerived_(ss);
   return { ok: true, sheetId: copy.getId(), url: copy.getUrl() };
 }
 
 function getContext_(ss) {
   var cows = [];
   var cowRows = values_(ss, "Cows");
-  var typeCol = headerIndex_(cowRows[0] || [], "type");
+  var header = cowRows[0] || [];
+  var nameCol = cowNameCol_(header);
+  var statusCol = headerIndex_(header, "status");
   for (var i = 1; i < cowRows.length; i++) {
-    if (cowRows[i][1] && String(cowRows[i][headerIndex_(cowRows[0], "status") === -1 ? 3 : headerIndex_(cowRows[0], "status")] || "").toLowerCase() !== "removed") {
-      cows.push(String(cowRows[i][1]));
+    var status = statusCol === -1 ? "" : String(cowRows[i][statusCol] || "");
+    if (cowRows[i][nameCol] && status.toLowerCase() !== "removed") {
+      cows.push(String(cowRows[i][nameCol]));
     }
   }
   var customers = [];
@@ -504,6 +966,7 @@ function commitRecords_(ss, body) {
       return { ok: false, error: result.error, saved: saved };
     }
   }
+  refreshDerived_(ss);
   clearPending_(body.sender, "saved");
   return { ok: true, saved: saved, lastWrite: last || null };
 }
@@ -583,13 +1046,16 @@ function commitOne_(ss, entry, note) {
       entry.note || note,
     ]);
     setLastWrite_(ss, "Fodder", row, "fodder", entry.item + " " + entry.cost_pkr);
+    if (entry.quantity != null && entry.quantity !== "") {
+      applyStockDelta_(ss, entry.item, Number(entry.quantity) || 0, entry.unit || "", entry.daily_use, "purchase", entry.date);
+    }
     return { ok: true, sheet: "Fodder", row: row };
   }
   if (entry.type === "cow" || entry.type === "add_cow" || entry.type === "animals") {
     return addCow_(ss, entry, note);
   }
   if (entry.type === "customer" || entry.type === "add_customer" || entry.type === "customers_onboard") {
-    upsertCustomer_(ss, entry.customer || entry.name, entry.phone || "", entry.rate_pkr, entry.opening_balance);
+    upsertCustomer_(ss, entry.customer || entry.name, entry.phone || "", entry.rate_pkr, entry.opening_balance, entry.billing_cycle, entry.cycle_start_date);
     var cust = values_(ss, "Customers");
     var idx = findRow_(cust, 0, entry.customer || entry.name);
     var row = idx === -1 ? sheet_(ss, "Customers").getLastRow() : idx + 1;
@@ -603,6 +1069,25 @@ function commitOne_(ss, entry, note) {
   if (entry.type === "change_rate") return changeRate_(ss, entry, note);
   if (entry.type === "correct_entry") return correctEntry_(ss, entry, note);
   if (entry.type === "delete_last") return deleteLast_(ss, note);
+  if (entry.type === "change_billing_cycle") return changeBillingCycle_(ss, entry, note);
+  if (entry.type === "animal_event" || entry.type === "vet_visit" || entry.type === "vet_appointment") {
+    return appendAnimalEvent_(ss, entry, note);
+  }
+  if (entry.type === "feed_use") {
+    var rowUse = applyStockDelta_(ss, entry.item, -(Number(entry.quantity) || 0), entry.unit || "", entry.daily_use, entry.note || "feed_use", entry.date);
+    setLastWrite_(ss, "Feed_Stock", rowUse, "feed_use", (entry.item || "") + " " + (entry.quantity || ""));
+    return { ok: true, sheet: "Feed_Stock", row: rowUse };
+  }
+  if (entry.type === "set_daily_use") {
+    var rowDaily = applyStockDelta_(ss, entry.item, 0, entry.unit || "", entry.daily_use, entry.note || "set_daily_use", entry.date);
+    setLastWrite_(ss, "Feed_Stock", rowDaily, "set_daily_use", (entry.item || "") + " " + (entry.daily_use || ""));
+    return { ok: true, sheet: "Feed_Stock", row: rowDaily };
+  }
+  if (entry.type === "feed_stock") {
+    var rowStock = applyStockDelta_(ss, entry.item, Number(entry.quantity) || 0, entry.unit || "", entry.daily_use, entry.note || "feed_stock", entry.date);
+    setLastWrite_(ss, "Feed_Stock", rowStock, "feed_stock", (entry.item || "") + " " + (entry.quantity || ""));
+    return { ok: true, sheet: "Feed_Stock", row: rowStock };
+  }
   if (entry.type === "profile") return { ok: true };
   return { ok: true, skipped: true };
 }
@@ -612,16 +1097,18 @@ function addCow_(ss, entry, note) {
   var data = values_(ss, "Cows");
   var header = data[0] || [];
   var name = entry.cow_name || entry.name;
-  if (findRow_(data, 1, name) !== -1) return { ok: true, already: true };
+  var nameCol = cowNameCol_(header);
+  if (findRow_(data, nameCol, name) !== -1) return { ok: true, already: true };
   var typeCol = headerIndex_(header, "type");
   var breedCol = headerIndex_(header, "breed");
   var statusCol = headerIndex_(header, "status");
   var avgCol = headerIndex_(header, "avg_daily_litres");
   var notesCol = headerIndex_(header, "notes");
+  var idCol = headerIndex_(header, "cow_id");
   var rowVals = [];
   for (var c = 0; c < Math.max(header.length, 5); c++) rowVals[c] = "";
-  rowVals[0] = nextCowId_(data);
-  rowVals[1] = name;
+  if (idCol !== -1) rowVals[idCol] = nextCowId_(data);
+  rowVals[nameCol] = name;
   if (typeCol !== -1) rowVals[typeCol] = normalizeAnimalType_(entry.animal_type || "cow");
   if (breedCol !== -1) rowVals[breedCol] = entry.breed || "";
   if (statusCol !== -1) rowVals[statusCol] = entry.status || "milking";
@@ -636,11 +1123,12 @@ function addCow_(ss, entry, note) {
 function renameCow_(ss, entry, note) {
   var sh = sheet_(ss, "Cows");
   var data = values_(ss, "Cows");
-  var idx = findRow_(data, 1, entry.cow_name);
+  var nameCol = cowNameCol_(data[0] || []);
+  var idx = findRow_(data, nameCol, entry.cow_name);
   if (idx === -1) return { ok: false, error: "Gay nahi mili: " + entry.cow_name };
   var row = idx + 1;
   var newName = entry.new_name;
-  sh.getRange(row, 2).setValue(newName);
+  sh.getRange(row, nameCol + 1).setValue(newName);
   var notesCol = headerIndex_(data[0], "notes");
   appendNote_(sh, row, notesCol + 1, "renamed from " + entry.cow_name + " (" + (entry.note || note) + ")");
   var milk = sheet_(ss, "Milk_Log");
@@ -657,7 +1145,7 @@ function renameCow_(ss, entry, note) {
 function removeCow_(ss, entry, note) {
   var sh = sheet_(ss, "Cows");
   var data = values_(ss, "Cows");
-  var idx = findRow_(data, 1, entry.cow_name);
+  var idx = findRow_(data, cowNameCol_(data[0] || []), entry.cow_name);
   if (idx === -1) return { ok: false, error: "Gay nahi mili: " + entry.cow_name };
   var row = idx + 1;
   var statusCol = headerIndex_(data[0], "status");
@@ -805,6 +1293,7 @@ function deleteLast_(ss, note) {
 }
 
 function readRecent_(ss, days) {
+  refreshDerived_(ss);
   var cutoff = todayMinus_(days);
   return {
     ok: true,
@@ -815,6 +1304,10 @@ function readRecent_(ss, days) {
     payments: filterDated_(ss, "Payments", 0, cutoff),
     expenses: filterDated_(ss, "Expenses", 0, cutoff),
     fodder: filterDated_(ss, "Fodder", 0, cutoff),
+    animal_events: values_(ss, "Animal_Events"),
+    feed_stock: values_(ss, "Feed_Stock"),
+    due_bills: values_(ss, "Due_Bills"),
+    upcoming_events: values_(ss, "Upcoming_Events"),
   };
 }
 
