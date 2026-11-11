@@ -225,12 +225,53 @@ function clearPending_(sender, status) {
   return { ok: true };
 }
 
+
+function isFodderCategory_(category) {
+  var c = String(category || "").toLowerCase();
+  return /(chara|chaara|charay|wanda|bhoosa|toori|silage|khal|fodder|^feed$|green fodder|hara chara)/.test(c);
+}
+
+function fodderItemName_(raw) {
+  var t = String(raw || "").toLowerCase();
+  if (t.indexOf("wanda") !== -1) return "wanda";
+  if (t.indexOf("bhoosa") !== -1 || t.indexOf("toori") !== -1) return "bhoosa";
+  if (t.indexOf("silage") !== -1) return "silage";
+  if (t.indexOf("khal") !== -1) return "khal";
+  if (
+    t.indexOf("chara") !== -1 ||
+    t.indexOf("green fodder") !== -1 ||
+    t.indexOf("hara chara") !== -1 ||
+    t.indexOf("fodder") !== -1
+  ) {
+    return "chara";
+  }
+  return "other";
+}
+
 function commitRecords_(body) {
   var entries = body.entries || [];
   var note = body.sourceNote || ("WhatsApp " + (body.sender || ""));
   var cows = values_("Cows");
   for (var i = 0; i < entries.length; i++) {
     var entry = entries[i];
+    if (entry.type === "expense" && isFodderCategory_(entry.category)) {
+      entry = {
+        type: "fodder",
+        date: entry.date,
+        item: fodderItemName_(entry.item || entry.category),
+        quantity: entry.quantity == null ? "" : entry.quantity,
+        unit: entry.unit || "",
+        cost_pkr: entry.cost_pkr != null ? entry.cost_pkr : entry.amount,
+        supplier: entry.supplier || "",
+        cash_paid: entry.cash_paid == null || entry.cash_paid === "" ? 0 : entry.cash_paid,
+        balance_owed:
+          entry.balance_owed == null || entry.balance_owed === ""
+            ? (Number(entry.cost_pkr != null ? entry.cost_pkr : entry.amount) || 0) -
+              (Number(entry.cash_paid) || 0)
+            : entry.balance_owed,
+        note: entry.note,
+      };
+    }
     if (entry.type === "milk") {
       append_("Milk_Log", [
         entry.date,
@@ -273,6 +314,18 @@ function commitRecords_(body) {
         ]);
         cows.push([id, entry.cow_name]);
       }
+    } else if (entry.type === "fodder") {
+      append_("Fodder", [
+        entry.date,
+        entry.item,
+        entry.quantity == null ? "" : entry.quantity,
+        entry.unit || "",
+        entry.cost_pkr,
+        entry.supplier || "",
+        entry.cash_paid,
+        entry.balance_owed,
+        entry.note || note,
+      ]);
     }
   }
   clearPending_(body.sender, "saved");
@@ -289,6 +342,7 @@ function readRecent_(days) {
     sales: filterDated_("Sales", 0, cutoff),
     payments: filterDated_("Payments", 0, cutoff),
     expenses: filterDated_("Expenses", 0, cutoff),
+    fodder: filterDated_("Fodder", 0, cutoff),
   };
 }
 
