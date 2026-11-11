@@ -1,11 +1,14 @@
 const path = require("path");
 const express = require("express");
+const { createSheets } = require("./lib/sheets");
+const { processPayload } = require("./lib/bot");
 
 const app = express();
 app.use(express.json({ limit: "2mb" }));
 
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 const pagesDir = path.join(__dirname, "pages");
+const sheets = createSheets();
 
 function sendPage(res, name) {
   res.sendFile(path.join(pagesDir, name));
@@ -35,7 +38,6 @@ app.post("/webhook", (req, res) => {
 
   const body = req.body ?? {};
   console.log(JSON.stringify(body));
-
   try {
     for (const entry of body.entry || []) {
       for (const change of entry.changes || []) {
@@ -52,8 +54,14 @@ app.post("/webhook", (req, res) => {
       }
     }
   } catch (err) {
-    console.error("failed to parse audio fields:", err);
+    console.error("failed to parse audio fields:", err.message);
   }
+
+  setImmediate(() => {
+    processPayload(sheets, body).catch((err) => {
+      console.error("processPayload failed", err.message);
+    });
+  });
 });
 
 const port = process.env.PORT || 10000;
