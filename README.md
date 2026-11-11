@@ -42,3 +42,13 @@ New farmer sheets are copied by Apps Script (`DriveApp.makeCopy`) and data rows 
 
 Farmers can text "Aslam ki parchi bhejo" to get a PNG receipt to forward. They can also add, rename, or remove a cow, add a customer, change a rate, correct a previous entry, or delete the last saved row. Photos of khata pages, fodder bills, or receipts are read the same way as text and voice notes; Munshi reads them back and waits for Haan/Nahi before writing.
 
+## Reply language (`REPLY_SCRIPT`)
+
+WhatsApp replies can be Roman Urdu, Urdu script, or both. Set the Render env var `REPLY_SCRIPT`:
+
+- `both` (default): Urdu script first, then a blank line, then Roman Urdu
+- `roman`: Roman Urdu only
+- `urdu`: Urdu script only
+- `auto`: match the script of the farmer's last text message
+
+Numbers, names, Rs amounts, and dates stay the same in both versions. Button titles stay short (`ہاں Haan`, `نہیں Nahi`, `ترمیم Edit`).

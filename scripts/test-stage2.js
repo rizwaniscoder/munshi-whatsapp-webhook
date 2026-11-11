@@ -235,7 +235,8 @@ async function main() {
     animal_events: recent.animal_events,
     feed_stock: stock2,
   }, "2026-11-11");
-  assert.ok(/wanda/i.test(footerLow), footerLow);
+  assert.ok(/Wanda/i.test(footerLow) && /din ka bacha|دن کا بچا/i.test(footerLow), footerLow);
+  assert.ok(!/2026-11-\d{2}T/.test(footerLow) && !/vet_appointment/.test(footerLow), footerLow);
 
 
   const footer = reminderFooter({
@@ -246,7 +247,7 @@ async function main() {
     animal_events: recent.animal_events,
     feed_stock: recent.feed_stock,
   }, "2026-11-11");
-  assert.ok(footer.includes("Khoraak") || footer.includes("Anay wala") || footer.includes("Bill") || footer === footer);
+  assert.ok(footer.includes("Khoraak") || footer.includes("Aane wala") || footer.includes("خوراک") || footer.includes("آنے والا") || footer.includes("Bill") || footer === "");
 
   const dueText = directQueryReply("kis ka bill due hai", recent, "2026-11-16");
   assert.ok(dueText && /bill|due|Aslam|nahi/i.test(dueText), dueText);
@@ -266,7 +267,9 @@ async function main() {
     summary: "",
   });
   assert.ok(/hafte/i.test(cycleConfirm) && /Edit|Tabdeeli/i.test(cycleConfirm), cycleConfirm);
-  assert.ok(savedText([{ type: "animal_event" }]).includes("Save ho gaya"));
+  assert.ok(savedText([{ type: "animal_event", cow_name: "Gori", event_type: "vet_appointment", date: "2026-11-12" }]).includes("Save ho gaya"));
+  assert.ok(savedText([{ type: "animal_event", cow_name: "Gori", event_type: "vet_appointment", date: "2026-11-12" }]).includes("Doctor ki visit"));
+  assert.ok(!/vet_appointment|2026-11-12T/.test(savedText([{ type: "animal_event", cow_name: "Gori", event_type: "vet_appointment", date: "2026-11-12" }])));
   assert.ok(/hafte|15 din|mahine|roz/i.test(ASK_CUSTOMERS), ASK_CUSTOMERS);
   const lines = customerOnboardLines([{ name: "Aslam", rate_pkr: 190, opening_balance: 0, billing_cycle: "weekly" }]);
   assert.ok(/hafte/i.test(lines), lines);
