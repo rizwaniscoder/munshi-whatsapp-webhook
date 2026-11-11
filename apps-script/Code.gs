@@ -103,18 +103,29 @@ function nextCowId_(data) {
   return "C-" + n;
 }
 
-function upsertCustomer_(name, phone, delta) {
+function balanceFormula_(row) {
+  return (
+    "=C" + row +
+    "+SUMIF(Sales!B:B,A" + row + ",Sales!G:G)-SUMIF(Payments!B:B,A" + row + ",Payments!C:C)"
+  );
+}
+
+function upsertCustomer_(name, phone) {
   var sh = sheet_("Customers");
   var data = sh.getDataRange().getValues();
   var idx = findRow_(data, 0, name);
   if (idx === -1) {
-    sh.appendRow([name, phone || "", 0, delta || 0]);
+    sh.appendRow([name, phone || "", 0, ""]);
+    var row = sh.getLastRow();
+    sh.getRange(row, 4).setFormula(balanceFormula_(row));
     return;
   }
   var row = idx + 1;
   if (phone) sh.getRange(row, 2).setValue(phone);
-  var current = parseAmount_(data[idx][3]) + (delta || 0);
-  sh.getRange(row, 4).setValue(current);
+  // Keep the balance formula so Dashboard and current_balance stay in sync.
+  if (!sh.getRange(row, 4).getFormula()) {
+    sh.getRange(row, 4).setFormula(balanceFormula_(row));
+  }
 }
 
 function handle_(body) {

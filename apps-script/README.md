@@ -18,3 +18,5 @@ The Render webhook cannot talk to Google Sheets on its own. This bound script is
 11. Copy the Web app URL and set it as `SHEETS_WEBHOOK_URL` on the Render service `munshi-whatsapp-webhook`, or send the URL to Munshi so it can be set for you.
 
 The webhook only needs that URL plus the shared secret. Do not commit the secret or the live URL if it embeds a secret.
+
+If the script is already deployed, paste the updated `Code.gs` and use Deploy > Manage deployments > the existing web app > pencil > New version, so the URL stays the same.
