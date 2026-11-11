@@ -1,13 +1,23 @@
+const path = require("path");
 const express = require("express");
 
 const app = express();
 app.use(express.json({ limit: "2mb" }));
 
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
+const pagesDir = path.join(__dirname, "pages");
+
+function sendPage(res, name) {
+  res.sendFile(path.join(pagesDir, name));
+}
 
 app.get("/", (_req, res) => {
   res.type("text/plain").send("ok");
 });
+
+app.get("/privacy", (_req, res) => sendPage(res, "privacy.html"));
+app.get("/terms", (_req, res) => sendPage(res, "terms.html"));
+app.get("/data-deletion", (_req, res) => sendPage(res, "data-deletion.html"));
 
 app.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
