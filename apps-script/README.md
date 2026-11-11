@@ -19,4 +19,6 @@ The Render webhook cannot talk to Google Sheets on its own. This bound script is
 
 The webhook only needs that URL plus the shared secret. Do not commit the secret or the live URL if it embeds a secret.
 
-If the script is already deployed, paste the updated `Code.gs` and use Deploy > Manage deployments > the existing web app > pencil > New version, so the URL stays the same.
+If the script is already deployed, paste the updated `Code.gs` and use Deploy > Manage deployments > the existing web app > pencil > New version, so the URL stays the same. The first time you deploy this version, Google will ask you to authorize Drive as well as Sheets. Drive is used only to copy a blank ledger for a new farmer. Review and allow. Leave the web app URL unchanged, and do not change `SHEETS_SECRET`.
+
+This version also supports a `Farmers` registry on the master sheet, per-farmer ledgers, cow type / average yield, customer rate, and edits (correct a row or delete the last write).
