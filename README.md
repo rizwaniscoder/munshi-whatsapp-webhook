@@ -5,6 +5,7 @@ WhatsApp bookkeeping assistant for Munshi, operated by Nodeable AI LLC. Farmers 
 ## Endpoints
 
 - `GET /` - health check, returns `ok`
+- `POST /cron/reminders` - authenticated missing-data check. Body `{"slot":"morning"}` or `{"slot":"evening"}`. Requires `Authorization: Bearer $CRON_SECRET`. Sends nothing when the ledger is complete, the farmer is outside the WhatsApp 24-hour window, or that slot was already sent today.
 - `GET /webhook` - Meta webhook verification (`hub.mode`, `hub.verify_token`, `hub.challenge`)
 - `POST /webhook` - accepts the event, returns 200 immediately, then processes asynchronously
 - `GET /privacy` - Privacy Policy
@@ -24,11 +25,14 @@ Set these on the host. Do not commit secrets.
 - `ALLOWED_NUMBERS` - comma-separated allowlist; empty means allow all (test phase)
 - `SHEETS_WEBHOOK_URL` - deployed Apps Script web app URL
 - `SHEETS_SECRET` - shared secret for the Apps Script gateway
+- `CRON_SECRET` - shared secret for `POST /cron/reminders`. Set the same value as the GitHub Actions secret `CRON_SECRET`. Do not commit it.
 - `TZ` - `Asia/Karachi`
 
 Until `SHEETS_WEBHOOK_URL` is set, pending records are held in memory only and will not survive a free-tier sleep. See `apps-script/README.md` for the one-time Sheet deploy.
 
-A GitHub Actions workflow that pings `GET /` every 10 minutes is in `docs/keepalive-workflow.yml`. Add it in the GitHub UI as `.github/workflows/keepalive.yml` (the repo token used here cannot create workflow files). Scheduled runs can be delayed by GitHub.
+A GitHub Actions workflow that pings `GET /` every 10 minutes is in `.github/workflows/keepalive.yml`. Scheduled runs can be delayed by GitHub.
+
+Missing-data reminders run from `.github/workflows/reminders.yml` at 10:00 and 19:00 Asia/Karachi (05:00 and 14:00 UTC; Pakistan has no daylight saving). The morning check names active animals with no subah milk log. The evening check names animals with no shaam log, animals with neither session, litres recorded today that were not sold, and sales that exceed recorded milk. One Roman Urdu message per farmer per slot, and only if that farmer messaged within the last 24 hours. The same slot is not sent twice in one day. Normal replies still use the existing footer. GitHub's schedule only runs from the default branch, so it starts after this is on `main`. Add `CRON_SECRET` on Render and as a GitHub Actions secret before relying on it.
 
 ## Multi-tenant ledgers
 

@@ -2,6 +2,8 @@ const path = require("path");
 const express = require("express");
 const { createSheets } = require("./lib/sheets");
 const { processPayload } = require("./lib/bot");
+const { authorizedCron, cronConfigured } = require("./lib/cron-auth");
+const { runReminderJob } = require("./lib/reminder-job");
 
 const app = express();
 app.use(express.json({ limit: "2mb" }));
@@ -16,6 +18,25 @@ function sendPage(res, name) {
 
 app.get("/", (_req, res) => {
   res.type("text/plain").send("ok");
+});
+
+app.post("/cron/reminders", async (req, res) => {
+  if (!cronConfigured()) {
+    return res.status(503).type("text/plain").send("cron secret is not configured");
+  }
+  if (!authorizedCron(req)) {
+    return res.status(401).type("text/plain").send("unauthorized");
+  }
+  try {
+    const result = await runReminderJob(sheets, {
+      slot: req.body && req.body.slot,
+      now: new Date(),
+    });
+    return res.status(200).json(result);
+  } catch (err) {
+    console.error("reminder job failed", err.message);
+    return res.status(500).json({ ok: false, error: "reminder job failed" });
+  }
 });
 
 app.get("/privacy", (_req, res) => sendPage(res, "privacy.html"));
