@@ -136,6 +136,44 @@ assert.strictEqual(bigFixed.daily_litres, 50);
 
 assert.strictEqual(interpretSupply("Aslam ko 20 litre diye, rate 190"), null);
 assert.strictEqual(interpretSupply("Gori ne 18 litre doodh diya"), null);
+assert.strictEqual(interpretSupply("Aslam 2 liter"), null);
+assert.strictEqual(interpretSupply("Aslam 2 liter", { customers: ["Aslam"] }), null);
+assert.strictEqual(interpretSupply("Tabarak 50 liter"), null);
+assert.strictEqual(interpretSupply("Tabarak 50 liter", { customers: ["Tabarak", "Aslam"] }), null);
+
+const fixedEdit = interpretSupply("Aslam ab fixed 1.5 liter");
+assert.ok(fixedEdit && fixedEdit.entries && fixedEdit.entries[0], "fixed cue should edit supply");
+assert.strictEqual(fixedEdit.entries[0].type, "set_supply");
+assert.strictEqual(fixedEdit.entries[0].customer, "Aslam");
+assert.strictEqual(fixedEdit.entries[0].supply_type, "fixed");
+assert.strictEqual(fixedEdit.entries[0].daily_litres, 1.5);
+
+const rozanaEdit = interpretSupply("Aslam rozana 2 liter", { customers: ["Aslam"] });
+assert.ok(rozanaEdit && rozanaEdit.entries && rozanaEdit.entries[0], "rozana cue should edit supply");
+assert.strictEqual(rozanaEdit.entries[0].type, "set_supply");
+assert.strictEqual(rozanaEdit.entries[0].supply_type, "fixed");
+assert.strictEqual(rozanaEdit.entries[0].daily_litres, 2);
+
+const hotelEdit = interpretSupply("Bilal hotel hai jitna le us hisab se");
+assert.ok(hotelEdit && hotelEdit.entries && hotelEdit.entries[0], "hotel cue should edit supply");
+assert.strictEqual(hotelEdit.entries[0].type, "set_supply");
+assert.strictEqual(hotelEdit.entries[0].customer, "Bilal");
+assert.strictEqual(hotelEdit.entries[0].supply_type, "flexible");
+assert.strictEqual(hotelEdit.entries[0].daily_litres, "");
+
+const flexibleEdit = interpretSupply("Aslam ab flexible hai");
+assert.ok(flexibleEdit && flexibleEdit.entries && flexibleEdit.entries[0], "flexible cue should edit supply");
+assert.strictEqual(flexibleEdit.entries[0].type, "set_supply");
+assert.strictEqual(flexibleEdit.entries[0].supply_type, "flexible");
+assert.strictEqual(flexibleEdit.entries[0].daily_litres, "");
+
+const billedEdit = interpretSupply("Aslam 2 liter, payment har mahine ki 2 tareekh ko");
+assert.ok(billedEdit && billedEdit.entries && billedEdit.entries[0], "litres plus billing language should edit supply");
+assert.strictEqual(billedEdit.entries[0].type, "set_supply");
+assert.strictEqual(billedEdit.entries[0].supply_type, "fixed");
+assert.strictEqual(billedEdit.entries[0].daily_litres, 2);
+assert.strictEqual(billedEdit.entries[0].billing_cycle, "monthly");
+assert.strictEqual(dayOf(billedEdit.entries[0].cycle_start_date), "02");
 
 // --- onboarding parse ---
 const onboard = parseCustomersOnboarding(
