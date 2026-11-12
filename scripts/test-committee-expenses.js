@@ -181,8 +181,30 @@ async function main() {
   assert.strictEqual(both.entries[0].date, TODAY);
   assert.ok(!both.entries[0].method && !both.entries[0].vendor);
 
-  const chai = interpretExpenses("aaj 80 chai", { today: TODAY });
+  const notLocal = [
+    "Gori 18",
+    "Gori ne 18 diya",
+    "Subah Gori 18",
+    "Aslam ko 2000 diye",
+    "Aslam se 2000 liye",
+    "Aslam ne 2000 cash diye",
+    "Aslam 2000 wasool",
+    "aaj 80 chai",
+  ];
+  for (const phrase of notLocal) {
+    assert.strictEqual(interpretExpenses(phrase, { today: TODAY }), null, phrase);
+    assert.strictEqual(interpretLocal(phrase, { today: TODAY, committees: [] }), null, phrase);
+  }
+  const chai = interpretExpenses("aaj kharcha 80 chai", { today: TODAY });
+  assert.strictEqual(chai.intent, "record");
   assert.strictEqual(chai.entries[0].category, "chai");
+  assert.strictEqual(chai.entries[0].amount, 80);
+  assert.strictEqual(interpretLocal("aaj 500 mazdoori", { today: TODAY, committees: [] }).entries[0].category, "labor");
+  assert.strictEqual(interpretLocal("aaj 2000 tankhwah", { today: TODAY, committees: [] }).entries[0].category, "salary");
+  assert.strictEqual(interpretLocal("aaj 300 bijli", { today: TODAY, committees: [] }).entries[0].category, "electricity");
+  assert.strictEqual(interpretLocal("aaj committee di", { today: TODAY, committees: [] }).intent, "clarify");
+  assert.strictEqual(interpretLocal("committee nahi di", { today: TODAY, committees: existing }).entries[0].status, "not_paid");
+  assert.strictEqual(interpretLocal("kameti 200 di", { today: TODAY, committees: [] }).entries.find((e) => e.type === "committee_log").amount, 200);
   assert.strictEqual(normalizeExpenseCategory("chai"), "chai");
   assert.notStrictEqual(normalizeExpenseCategory("dukaan kiraya"), "other");
   assert.strictEqual(normalizeExpenseCategory("mazdoori"), "labor");

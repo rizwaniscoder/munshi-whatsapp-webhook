@@ -48,7 +48,7 @@ A saving committee (Roman Urdu: committee / kameti / kumitee) is stored on `Comm
 
 `Expenses` accepts any daily cost, including mazdoori, tankhwah, bijli, fuel, dawai, kiraya, marammat, and free-form notes. Fodder purchases still go to `Fodder`, not `Expenses`. An expense with no amount is not written. Several costs in one message are confirmed together, with the amount, category, and date.
 
-Examples: `aaj committee di`, `committee nahi di`, `kameti 200 di`, `is mahine committee kitni di`, `aaj 500 mazdoori aur 2000 tankhwah`, `aaj kharcha kitna hua`, `is hafte mazdoori kitni di`.
+Examples: `aaj committee di`, `committee nahi di`, `kameti 200 di`, `is mahine committee kitni di`, `aaj 500 mazdoori aur 2000 tankhwah`, `aaj kharcha 80 chai`, `aaj kharcha kitna hua`, `is hafte mazdoori kitni di`. Milk and customer payments are not treated as expenses.
 
 ## Reply language (`REPLY_SCRIPT`)
 
