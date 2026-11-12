@@ -40,6 +40,8 @@ Each allowed WhatsApp number gets its own Google Sheet, copied from the template
 
 Unknown numbers are told the service is invite-only. To add a farmer, put their number in the `Farmers` tab with `allowed` = TRUE, or set `ALLOWED_NUMBERS` on Render (comma-separated, no plus sign). A new allowed number is walked through onboarding: name and farm, animals (cows and buffaloes), customers (or `skip`), then an optional saving committee (or `skip`). Every write is confirmed with Haan/Nahi first.
 
+Customer standing supply is `supply_type` and `daily_litres` on the Customers tab. `fixed` means that many litres every day, even when the bill is weekly or monthly ("2 liter, payment har mahine ki 2 tareekh ko" is 2 litres a day, billed on the 2nd). `flexible` is for hotels and similar buyers; a mentioned typical amount is stored as a note and `daily_litres` stays blank. If the farmer does not say, both stay blank. "Aslam rozana kitna leta hai?" is answered from those fields. Apps Script must be redeployed as a new version of the same web app before the live sheet will store the new columns. Do not change `SHEETS_SECRET`.
+
 New farmer sheets are copied by Apps Script (`DriveApp.makeCopy`) and data rows are cleared. Until the updated `apps-script/Code.gs` is deployed as a new version of the existing web app, the webhook falls back to the previous single-ledger behaviour so current records keep working. Do not change `SHEETS_SECRET` or `SHEETS_WEBHOOK_URL`.
 
 ## Receipts, edits, and photos

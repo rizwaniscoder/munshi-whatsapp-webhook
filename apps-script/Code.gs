@@ -194,7 +194,7 @@ function tabHeaders_() {
 
 function extraColumns_() {
   return {
-    Customers: ["billing_cycle", "cycle_start_date"],
+    Customers: ["billing_cycle", "cycle_start_date", "supply_type", "daily_litres"],
     Cows: ["last_insemination", "pregnancy_status", "expected_calving", "dry_off_due", "pregnancy_check_due"]
   };
 }
@@ -274,6 +274,7 @@ function isSchemaCurrent_(ss) {
   if (!cust) return false;
   var chead = cust.getRange(1, 1, 1, Math.max(cust.getLastColumn(), 1)).getValues()[0];
   if (headerIndex_(chead, "billing_cycle") === -1) return false;
+  if (headerIndex_(chead, "supply_type") === -1 || headerIndex_(chead, "daily_litres") === -1) return false;
   var cows = ss.getSheetByName("Cows");
   if (cows) {
     var cowHead = cows.getRange(1, 1, 1, Math.max(cows.getLastColumn(), 1)).getValues()[0];
@@ -631,6 +632,26 @@ function applyStockDelta_(ss, item, quantity, unit, dailyUse, notes, today) {
   return row;
 }
 
+function setSupply_(ss, entry, note) {
+  var sh = sheet_(ss, "Customers");
+  var data = values_(ss, "Customers");
+  var header = data[0] || [];
+  var idx = findRow_(data, 0, entry.customer);
+  if (idx === -1) return { error: "Customer nahi mila: " + entry.customer };
+  var row = idx + 1;
+  applyCustomerSupply_(sh, header, row, entry);
+  if (entry.billing_cycle || entry.cycle_start_date) {
+    applyCustomerCycle_(sh, header, row, entry.billing_cycle, entry.cycle_start_date, false);
+  }
+  var notesIdx = headerIndex_(header, "notes");
+  if (entry.supply_note && notesIdx !== -1) {
+    var prev = String(sh.getRange(row, notesIdx + 1).getValue() || "");
+    if (prev.indexOf(entry.supply_note) === -1) appendNote_(sh, row, notesIdx + 1, entry.supply_note);
+  }
+  setLastWrite_(ss, "Customers", row, "set_supply", entry.customer + " " + (entry.supply_type || ""));
+  return { ok: true, sheet: "Customers", row: row };
+}
+
 function changeBillingCycle_(ss, entry, note) {
   var sh = sheet_(ss, "Customers");
   var data = values_(ss, "Customers");
@@ -816,6 +837,18 @@ function upsertCustomer_(ss, name, phone, rate, opening, cycle, cycleStart) {
     sh.getRange(row, balCol + 1).setFormula(balanceFormula_(row, openCol));
   }
   applyCustomerCycle_(sh, header, row, cycle, cycleStart, false);
+}
+
+function applyCustomerSupply_(sh, header, row, entry) {
+  var type = String(entry.supply_type || "").toLowerCase();
+  if (type !== "fixed" && type !== "flexible") return;
+  var typeCol = headerIndex_(header, "supply_type");
+  var litreCol = headerIndex_(header, "daily_litres");
+  if (typeCol !== -1) sh.getRange(row, typeCol + 1).setValue(type);
+  if (litreCol !== -1) {
+    if (type === "flexible") sh.getRange(row, litreCol + 1).setValue("");
+    else if (entry.daily_litres != null && entry.daily_litres !== "") sh.getRange(row, litreCol + 1).setValue(entry.daily_litres);
+  }
 }
 
 function applyCustomerCycle_(sh, header, row, cycle, cycleStart, isNew) {
@@ -1129,7 +1162,23 @@ function getContext_(ss) {
       start_date: startCol === -1 ? "" : cellDate_(commRows[k][startCol])
     });
   }
-  return { ok: true, cows: cows, customers: customers, committees: committees };
+  var customerSupply = [];
+  var supplyCol = headerIndex_(custRows[0] || [], "supply_type");
+  var litreCol = headerIndex_(custRows[0] || [], "daily_litres");
+  var noteCol = headerIndex_(custRows[0] || [], "notes");
+  for (var s = 1; s < custRows.length; s++) {
+    if (!custRows[s][0]) continue;
+    var supplyType = supplyCol === -1 ? "" : String(custRows[s][supplyCol] || "").toLowerCase();
+    var supplyLitres = litreCol === -1 ? "" : custRows[s][litreCol];
+    var supplyNotes = noteCol === -1 ? "" : String(custRows[s][noteCol] || "");
+    if (supplyType === "fixed" && supplyLitres !== "" && supplyLitres != null) {
+      customerSupply.push(String(custRows[s][0]) + " fixed " + supplyLitres + " L/day");
+    } else if (supplyType === "flexible") {
+      var typical = supplyNotes.match(/typical\s+[\d.]+\s*L\/day/i);
+      customerSupply.push(String(custRows[s][0]) + " flexible" + (typical ? " " + typical[0] : ""));
+    }
+  }
+  return { ok: true, cows: cows, customers: customers, committees: committees, customer_supply: customerSupply };
 }
 
 function isProcessed_(messageId) {
@@ -1575,11 +1624,18 @@ function commitOne_(ss, entry, note) {
     var cust = values_(ss, "Customers");
     var idx = findRow_(cust, 0, entry.customer || entry.name);
     var row = idx === -1 ? sheet_(ss, "Customers").getLastRow() : idx + 1;
+    var custSheet = sheet_(ss, "Customers");
     var notesCol = headerIndex_(cust[0], "notes");
-    if (notesCol !== -1) appendNote_(sheet_(ss, "Customers"), row, notesCol + 1, entry.note || note);
+    if (notesCol !== -1) appendNote_(custSheet, row, notesCol + 1, entry.note || note);
+    applyCustomerSupply_(custSheet, cust[0], row, entry);
+    if (entry.supply_note && notesCol !== -1) {
+      var prevNote = String(custSheet.getRange(row, notesCol + 1).getValue() || "");
+      if (prevNote.indexOf(entry.supply_note) === -1) appendNote_(custSheet, row, notesCol + 1, entry.supply_note);
+    }
     setLastWrite_(ss, "Customers", row, "add_customer", entry.customer || entry.name);
     return { ok: true, sheet: "Customers", row: row };
   }
+  if (entry.type === "set_supply") return setSupply_(ss, entry, note);
   if (entry.type === "rename_cow") return renameCow_(ss, entry, note);
   if (entry.type === "remove_cow") return removeCow_(ss, entry, note);
   if (entry.type === "change_rate") return changeRate_(ss, entry, note);
