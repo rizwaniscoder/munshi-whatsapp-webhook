@@ -181,7 +181,10 @@ function tabHeaders_() {
     Animal_Events: ["date", "cow", "event_type", "details", "doctor_name", "diagnosis", "medicines", "cost_pkr", "next_due_date", "source_note"],
     Feed_Stock: ["item", "quantity", "unit", "daily_use", "updated_at", "notes", "days_left", "run_out_date", "reorder_by", "avg_cost_per_kg"],
     Due_Bills: ["customer", "period_start", "period_end", "due_date", "litres", "amount", "paid", "balance_due", "status"],
-    Upcoming_Events: ["date", "cow", "event", "details"]
+    Upcoming_Events: ["date", "cow", "event", "details"],
+    Committees: ["name", "amount", "frequency", "start_date", "organizer", "status", "notes"],
+    Committee_Log: ["date", "committee", "status", "amount", "note"],
+    Committee_Status: ["committee", "frequency", "as_of", "paid_periods", "missed_periods", "paid_amount", "arrears", "given_so_far", "today_status"]
   };
 }
 
@@ -235,13 +238,25 @@ function ensureDashboard_(ss) {
   var sh = ss.getSheetByName("Dashboard");
   if (!sh) return;
   var label = String(sh.getRange("A26").getValue() || "");
-  if (/due bills/i.test(label)) return;
-  sh.getRange("A26").setValue("DUE BILLS");
-  sh.getRange("A27").setFormula('=IFERROR(QUERY(Due_Bills!A2:I50,"select A, D, H, I where H > 0 order by D",1),"Koi bill due nahi")');
-  sh.getRange("A34").setValue("UPCOMING (30 DAYS)");
-  sh.getRange("A35").setFormula('=IFERROR(QUERY(Upcoming_Events!A2:D50,"select A, B, C, D order by A",1),"Koi event nahi")');
-  sh.getRange("A44").setValue("FEED STOCK");
-  sh.getRange("A45").setFormula('=IFERROR(QUERY(Feed_Stock!A2:D20,"select A, B, C, D",1),"Stock nahi")');
+  if (!/due bills/i.test(label)) {
+    sh.getRange("A26").setValue("DUE BILLS");
+    sh.getRange("A27").setFormula('=IFERROR(QUERY(Due_Bills!A2:I50,"select A, D, H, I where H > 0 order by D",1),"Koi bill due nahi")');
+    sh.getRange("A34").setValue("UPCOMING (30 DAYS)");
+    sh.getRange("A35").setFormula('=IFERROR(QUERY(Upcoming_Events!A2:D50,"select A, B, C, D order by A",1),"Koi event nahi")');
+    sh.getRange("A44").setValue("FEED STOCK");
+    sh.getRange("A45").setFormula('=IFERROR(QUERY(Feed_Stock!A2:D20,"select A, B, C, D",1),"Stock nahi")');
+  }
+  var found = false;
+  var col = sh.getRange("A1:A80").getValues();
+  var i;
+  for (i = 0; i < col.length; i++) {
+    if (/^committee$/i.test(String(col[i][0] || "").trim())) found = true;
+  }
+  if (!found) {
+    var row = String(sh.getRange("A52").getValue() || "") ? 60 : 52;
+    sh.getRange(row, 1).setValue("COMMITTEE");
+    sh.getRange(row + 1, 1).setFormula('=IFERROR(QUERY(Committee_Status!A2:I40,"select A, I, G, H",1),"Koi committee nahi")');
+  }
 }
 
 function isSchemaCurrent_(ss) {
@@ -260,6 +275,13 @@ function isSchemaCurrent_(ss) {
     var cowHead = cows.getRange(1, 1, 1, Math.max(cows.getLastColumn(), 1)).getValues()[0];
     if (headerIndex_(cowHead, "expected_calving") === -1) return false;
   }
+  if (!ss.getSheetByName("Committees")) return false;
+  if (!ss.getSheetByName("Committee_Log")) return false;
+  if (!ss.getSheetByName("Committee_Status")) return false;
+  var comm = ss.getSheetByName("Committees").getRange(1, 1, 1, Math.max(ss.getSheetByName("Committees").getLastColumn(), 1)).getValues()[0];
+  if (headerIndex_(comm, "amount") === -1 || headerIndex_(comm, "frequency") === -1) return false;
+  var clog = ss.getSheetByName("Committee_Log").getRange(1, 1, 1, Math.max(ss.getSheetByName("Committee_Log").getLastColumn(), 1)).getValues()[0];
+  if (headerIndex_(clog, "status") === -1) return false;
   return true;
 }
 
@@ -291,6 +313,20 @@ function migrateLedger_(ss) {
     if (runIdx !== -1) feedSh.getRange(1, runIdx + 1, feedSh.getMaxRows(), 1).setNumberFormat("yyyy-mm-dd");
     if (reoIdx !== -1) feedSh.getRange(1, reoIdx + 1, feedSh.getMaxRows(), 1).setNumberFormat("yyyy-mm-dd");
     if (updIdx !== -1) feedSh.getRange(1, updIdx + 1, feedSh.getMaxRows(), 1).setNumberFormat("yyyy-mm-dd");
+  }
+  var commSh = ss.getSheetByName("Committees");
+  if (commSh) {
+    var ch = commSh.getRange(1, 1, 1, Math.max(commSh.getLastColumn(), 1)).getValues()[0];
+    var startIdx = headerIndex_(ch, "start_date");
+    if (startIdx !== -1) commSh.getRange(1, startIdx + 1, commSh.getMaxRows(), 1).setNumberFormat("yyyy-mm-dd");
+  }
+  var logSh = ss.getSheetByName("Committee_Log");
+  if (logSh) logSh.getRange("A:A").setNumberFormat("yyyy-mm-dd");
+  var statSh = ss.getSheetByName("Committee_Status");
+  if (statSh) {
+    var shh = statSh.getRange(1, 1, 1, Math.max(statSh.getLastColumn(), 1)).getValues()[0];
+    var asOf = headerIndex_(shh, "as_of");
+    if (asOf !== -1) statSh.getRange(1, asOf + 1, statSh.getMaxRows(), 1).setNumberFormat("yyyy-mm-dd");
   }
   migratedThisRequest_ = true;
 }
@@ -485,6 +521,7 @@ function refreshDerived_(ss) {
   if (upcoming.length) {
     upSh.getRange(2, 1, upcoming.length, 4).setValues(upcoming);
   }
+  writeCommitteeStatus_(ss, today);
 }
 
 
@@ -932,7 +969,7 @@ function copyLedger_(body) {
   var farmers = ss.getSheetByName("Farmers");
   if (farmers) ss.deleteSheet(farmers);
   migrateLedger_(ss);
-  var tabs = ["Milk_Log", "Sales", "Payments", "Expenses", "Fodder", "Pending", "Processed_Ids", "Last_Write", "Cows", "Customers", "Animal_Events", "Feed_Stock", "Due_Bills", "Upcoming_Events"];
+  var tabs = ["Milk_Log", "Sales", "Payments", "Expenses", "Fodder", "Pending", "Processed_Ids", "Last_Write", "Cows", "Customers", "Animal_Events", "Feed_Stock", "Due_Bills", "Upcoming_Events", "Committees", "Committee_Log", "Committee_Status"];
   for (var i = 0; i < tabs.length; i++) clearData_(ss, tabs[i]);
   if (body.phone) {
     upsertFarmer_({
@@ -965,7 +1002,26 @@ function getContext_(ss) {
   for (var j = 1; j < custRows.length; j++) {
     if (custRows[j][0]) customers.push(String(custRows[j][0]));
   }
-  return { ok: true, cows: cows, customers: customers };
+  var committees = [];
+  var commRows = values_(ss, "Committees");
+  var chead = commRows[0] || [];
+  var nameCol = headerIndex_(chead, "name"); if (nameCol === -1) nameCol = 0;
+  var amtCol = headerIndex_(chead, "amount");
+  var freqCol = headerIndex_(chead, "frequency");
+  var startCol = headerIndex_(chead, "start_date");
+  var statCol = headerIndex_(chead, "status");
+  for (var k = 1; k < commRows.length; k++) {
+    if (!commRows[k][nameCol]) continue;
+    var st = statCol === -1 ? "active" : String(commRows[k][statCol] || "active");
+    if (st.toLowerCase() === "paused") continue;
+    committees.push({
+      name: String(commRows[k][nameCol]),
+      amount: amtCol === -1 ? 0 : parseAmount_(commRows[k][amtCol]),
+      frequency: freqCol === -1 ? "daily" : String(commRows[k][freqCol] || "daily"),
+      start_date: startCol === -1 ? "" : cellDate_(commRows[k][startCol])
+    });
+  }
+  return { ok: true, cows: cows, customers: customers, committees: committees };
 }
 
 function isProcessed_(messageId) {
@@ -1067,6 +1123,219 @@ function normalizeAnimalType_(raw) {
   return "cow";
 }
 
+function canonicalExpense_(raw) {
+  var s = String(raw || "").trim().replace(/\s+/g, " ");
+  if (!s) return "";
+  if (/^(kharcha|kharch|expense|expenses|other)$/i.test(s)) return "kharcha";
+  var rules = [
+    ["labor", /\b(mazdo+ri|mazduri|mazdoor|labour|labor|mzdori)\b/i],
+    ["salary", /\b(tankhwa?h|tankwah|tankhah|tanakhah|salary)\b/i],
+    ["electricity", /\b(bijli|electricity|light bill|light)\b/i],
+    ["fuel", /\b(fuel|diesel|petrol|disel)\b/i],
+    ["medicine", /\b(dawai|davai|dawa|medicine|medicines)\b/i],
+    ["transport", /\b(transport|kiraya|kirayah|sawari|travel)\b/i],
+    ["repairs", /\b(marammat|maramat|repair|repairs)\b/i],
+    ["animal_health", /\banimal[ _]?health\b/i]
+  ];
+  var fillers = { ka: 1, ki: 1, ke: 1, aaj: 1, kal: 1, roz: 1, daily: 1, bill: 1, wala: 1, wali: 1, wale: 1, the: 1, of: 1, for: 1 };
+  var words = s.toLowerCase().split(/\s+/);
+  var i;
+  for (i = 0; i < rules.length; i++) {
+    if (!rules[i][1].test(s)) continue;
+    var leftover = false;
+    var w;
+    for (w = 0; w < words.length; w++) {
+      if (rules[i][1].test(words[w]) || fillers[words[w]]) continue;
+      leftover = true;
+    }
+    if (!leftover) return rules[i][0];
+  }
+  return s.toLowerCase();
+}
+
+function committeeAmount_(ss, name) {
+  var rows = values_(ss, "Committees");
+  var header = rows[0] || [];
+  var nameCol = headerIndex_(header, "name");
+  if (nameCol === -1) nameCol = 0;
+  var amtCol = headerIndex_(header, "amount");
+  var idx = findRow_(rows, nameCol, name);
+  if (idx === -1 || amtCol === -1) return 0;
+  return parseAmount_(rows[idx][amtCol]);
+}
+
+function upsertCommittee_(ss, entry) {
+  var sh = sheet_(ss, "Committees");
+  var data = values_(ss, "Committees");
+  var header = data[0] || [];
+  var name = entry.name || "Committee";
+  var nameCol = headerIndex_(header, "name");
+  if (nameCol === -1) nameCol = 0;
+  var idx = findRow_(data, nameCol, name);
+  function put(arr, colName, val) {
+    var i = headerIndex_(header, colName);
+    if (i !== -1 && val != null && val !== "") arr[i] = val;
+  }
+  if (idx === -1) {
+    var rowVals = [];
+    var c;
+    for (c = 0; c < header.length; c++) rowVals[c] = "";
+    put(rowVals, "name", name);
+    put(rowVals, "amount", entry.amount);
+    put(rowVals, "frequency", entry.frequency || "daily");
+    put(rowVals, "start_date", entry.start_date || "");
+    put(rowVals, "organizer", entry.organizer || "");
+    put(rowVals, "status", entry.status || "active");
+    put(rowVals, "notes", entry.note || "");
+    sh.appendRow(rowVals);
+    var row = sh.getLastRow();
+    setLastWrite_(ss, "Committees", row, "setup_committee", name + " " + (entry.amount || ""));
+    return { ok: true, sheet: "Committees", row: row };
+  }
+  var rowNum = idx + 1;
+  function setCell(colName, val) {
+    var i = headerIndex_(header, colName);
+    if (i === -1 || val == null || val === "") return;
+    sh.getRange(rowNum, i + 1).setValue(val);
+  }
+  setCell("amount", entry.amount);
+  setCell("frequency", entry.frequency || "");
+  setCell("start_date", entry.start_date || "");
+  setCell("organizer", entry.organizer || "");
+  setCell("status", entry.status || "");
+  setLastWrite_(ss, "Committees", rowNum, "setup_committee", name + " " + (entry.amount || ""));
+  return { ok: true, sheet: "Committees", row: rowNum };
+}
+
+function appendCommitteeLog_(ss, entry) {
+  var status = entry.status || "paid";
+  var amount = entry.amount;
+  if (status === "not_paid") amount = "";
+  if (status !== "not_paid" && !parseAmount_(amount)) {
+    var known = committeeAmount_(ss, entry.committee);
+    if (status === "paid" && known) amount = known;
+    else return { ok: true, skipped: true };
+  }
+  var row = append_(ss, "Committee_Log", [
+    entry.date || "",
+    entry.committee || "Committee",
+    status,
+    amount === "" || amount == null ? "" : amount,
+    entry.note || ""
+  ]);
+  setLastWrite_(ss, "Committee_Log", row, "committee_log", (entry.committee || "") + " " + status);
+  return { ok: true, sheet: "Committee_Log", row: row };
+}
+
+function committeePeriods_(freq, start, today) {
+  var periods = [];
+  if (!start || start > today) return periods;
+  var cursor;
+  if (freq === "daily") {
+    cursor = start;
+    while (cursor <= today && periods.length < 800) {
+      periods.push({ start: cursor, end: cursor, closed: true });
+      cursor = addDaysISO_(cursor, 1);
+    }
+    return periods;
+  }
+  var step = freq === "weekly" ? 7 : (freq === "biweekly" ? 14 : 0);
+  if (step) {
+    cursor = start;
+    while (cursor <= today && periods.length < 400) {
+      var end = addDaysISO_(cursor, step - 1);
+      periods.push({ start: cursor, end: end, closed: end <= today });
+      cursor = addDaysISO_(cursor, step);
+    }
+    return periods;
+  }
+  cursor = start;
+  while (cursor <= today && periods.length < 120) {
+    var parts = String(cursor).split("-");
+    var y = Number(parts[0]);
+    var m = Number(parts[1]) + 1;
+    var d = Number(parts[2]);
+    if (m > 12) { m = 1; y += 1; }
+    var last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    var next = y + "-" + (m < 10 ? "0" : "") + m + "-" + (Math.min(d, last) < 10 ? "0" : "") + Math.min(d, last);
+    var mend = addDaysISO_(next, -1);
+    periods.push({ start: cursor, end: mend, closed: mend <= today });
+    cursor = addDaysISO_(mend, 1);
+  }
+  return periods;
+}
+
+function summarizeCommitteeGs_(name, expected, freq, start, logs, ld, lc, ls, la, today) {
+  var periods = committeePeriods_(freq, start, today);
+  var monthStart = String(today).slice(0, 8) + "01";
+  var summary = { monthPaid: 0, monthMissed: 0, monthPaidAmount: 0, arrears: 0, given: 0, todayStatus: "not_paid" };
+  var p;
+  for (p = 0; p < periods.length; p++) {
+    var period = periods[p];
+    var log = null;
+    var j;
+    for (j = 1; j < logs.length; j++) {
+      if (String(logs[j][lc] || "").toLowerCase() !== String(name).toLowerCase()) continue;
+      var dt = cellDate_(logs[j][ld]);
+      if (!dt || dt < period.start || dt > period.end) continue;
+      log = logs[j];
+    }
+    var status = log ? String(log[ls] || "not_paid") : "not_paid";
+    var amount = log ? parseAmount_(log[la]) : 0;
+    if (status === "paid" && !amount && expected) amount = expected;
+    if (status === "paid" && expected && amount > 0 && amount < expected) status = "partial";
+    var inMonth = period.start >= monthStart && period.start <= today;
+    if (status === "paid") {
+      summary.given += amount;
+      if (inMonth) { summary.monthPaid += 1; summary.monthPaidAmount += amount; }
+    } else if (status === "partial") {
+      summary.given += amount;
+      if (period.closed) summary.arrears += Math.max(0, expected - amount);
+      if (inMonth) { summary.monthPaidAmount += amount; summary.monthMissed += 1; }
+    } else if (period.closed) {
+      summary.arrears += expected;
+      if (inMonth) summary.monthMissed += 1;
+    } else if (inMonth) {
+      summary.monthMissed += 1;
+    }
+    if (period.start <= today && period.end >= today) summary.todayStatus = status === "paid" || status === "partial" ? status : "not_paid";
+  }
+  return summary;
+}
+
+function writeCommitteeStatus_(ss, today) {
+  var sh = sheet_(ss, "Committee_Status");
+  var last = sh.getLastRow();
+  if (last > 1) sh.getRange(2, 1, last - 1, Math.max(sh.getLastColumn(), 9)).clearContent();
+  var committees = values_(ss, "Committees");
+  var logs = values_(ss, "Committee_Log");
+  var header = committees[0] || [];
+  var nameCol = headerIndex_(header, "name"); if (nameCol === -1) nameCol = 0;
+  var amtCol = headerIndex_(header, "amount");
+  var freqCol = headerIndex_(header, "frequency");
+  var startCol = headerIndex_(header, "start_date");
+  var statCol = headerIndex_(header, "status");
+  var lhead = logs[0] || [];
+  var ld = headerIndex_(lhead, "date"); if (ld === -1) ld = 0;
+  var lc = headerIndex_(lhead, "committee"); if (lc === -1) lc = 1;
+  var ls = headerIndex_(lhead, "status"); if (ls === -1) ls = 2;
+  var la = headerIndex_(lhead, "amount"); if (la === -1) la = 3;
+  var out = [];
+  var i;
+  for (i = 1; i < committees.length; i++) {
+    var name = String(committees[i][nameCol] || "");
+    if (!name) continue;
+    var st = statCol === -1 ? "active" : String(committees[i][statCol] || "active");
+    if (String(st).toLowerCase() === "paused") continue;
+    var expected = amtCol === -1 ? 0 : parseAmount_(committees[i][amtCol]);
+    var freq = normalizeCycle_(freqCol === -1 ? "daily" : committees[i][freqCol]);
+    var start = startCol === -1 ? today : (cellDate_(committees[i][startCol]) || today);
+    var summary = summarizeCommitteeGs_(name, expected, freq, start, logs, ld, lc, ls, la, today);
+    out.push([name, freq, today, summary.monthPaid, summary.monthMissed, summary.monthPaidAmount, summary.arrears, summary.given, summary.todayStatus]);
+  }
+  if (out.length) sh.getRange(2, 1, out.length, 9).setValues(out);
+}
+
 function commitRecords_(ss, body) {
   var started = Date.now();
   var entries = body.entries || [];
@@ -1165,7 +1434,9 @@ function commitOne_(ss, entry, note) {
       return commitOne_(ss, entry, note);
     }
     var amt = parseAmount_(entry.amount);
-    if ((!entry.date || entry.date === "") && !amt) return { ok: true, skipped: true };
+    if (!amt) return { ok: true, skipped: true };
+    entry.category = canonicalExpense_(entry.category || entry.note);
+    if (!entry.category) entry.category = "kharcha";
     var row = append_(ss, "Expenses", [entry.date, entry.category, entry.amount, entry.note || note]);
     setLastWrite_(ss, "Expenses", row, "expense", entry.category + " " + entry.amount);
     return { ok: true, sheet: "Expenses", row: row };
@@ -1225,6 +1496,8 @@ function commitOne_(ss, entry, note) {
     setLastWrite_(ss, "Feed_Stock", rowStock, "feed_stock", (entry.item || "") + " " + (entry.quantity || ""));
     return { ok: true, sheet: "Feed_Stock", row: rowStock };
   }
+  if (entry.type === "setup_committee") return upsertCommittee_(ss, entry, note);
+  if (entry.type === "committee_log") return appendCommitteeLog_(ss, entry, note);
   if (entry.type === "profile") return { ok: true };
   return { ok: true, skipped: true };
 }
@@ -1346,6 +1619,7 @@ function sheetForEntryType_(type) {
   if (t === "payment") return "Payments";
   if (t === "expense") return "Expenses";
   if (t === "fodder") return "Fodder";
+  if (t === "committee" || t === "committee_log") return "Committee_Log";
   return "";
 }
 
@@ -1365,6 +1639,7 @@ function fieldColFor_(tab, field, header) {
   }
   if (tab === "Payments" && (f === "amount" || f === "")) return 2;
   if (tab === "Expenses" && (f === "amount" || f === "")) return 2;
+  if (tab === "Committee_Log" && (f === "amount" || f === "")) return 3;
   if (tab === "Fodder") {
     if (f === "cost_pkr" || f === "amount" || f === "") return 4;
     if (f === "quantity") return 2;
@@ -1383,6 +1658,7 @@ function noteColFor_(tab, header) {
   if (tab === "Milk_Log") return 4;
   if (tab === "Sales") return 7;
   if (tab === "Expenses") return 3;
+  if (tab === "Committee_Log") return 4;
   if (tab === "Fodder") return 8;
   return header.length - 1;
 }
@@ -1401,6 +1677,11 @@ function rowMatchesCorrection_(tab, row, entry) {
       var col = tab === "Sales" ? (entry.field === "litres" ? 2 : 4) : 2;
       if (parseAmount_(row[col]) !== parseAmount_(entry.old_value)) return false;
     }
+    return true;
+  }
+  if (tab === "Committee_Log") {
+    if (entry.committee && String(row[1] || "").toLowerCase() !== String(entry.committee).toLowerCase()) return false;
+    if (entry.old_value != null && entry.old_value !== "" && parseAmount_(row[3]) !== parseAmount_(entry.old_value)) return false;
     return true;
   }
   if (tab === "Expenses" || tab === "Fodder") {
@@ -1445,6 +1726,9 @@ function readRecent_(ss, days, refresh) {
     feed_stock: values_(ss, "Feed_Stock"),
     due_bills: values_(ss, "Due_Bills"),
     upcoming_events: values_(ss, "Upcoming_Events"),
+    committees: values_(ss, "Committees"),
+    committee_log: values_(ss, "Committee_Log"),
+    committee_status: values_(ss, "Committee_Status"),
   };
 }
 

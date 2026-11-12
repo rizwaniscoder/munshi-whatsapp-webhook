@@ -34,13 +34,21 @@ A GitHub Actions workflow that pings `GET /` every 10 minutes is in `docs/keepal
 
 Each allowed WhatsApp number gets its own Google Sheet, copied from the template ledger. A `Farmers` tab on the master sheet (`SHEET_ID`) maps phone number, sheet id, name, farm name, onboarding state, and `allowed`. The existing test number `923155506704` is already registered to the current ledger.
 
-Unknown numbers are told the service is invite-only. To add a farmer, put their number in the `Farmers` tab with `allowed` = TRUE, or set `ALLOWED_NUMBERS` on Render (comma-separated, no plus sign). A new allowed number is walked through onboarding: name and farm, animals (cows and buffaloes), then customers (or `skip`). Every write is confirmed with Haan/Nahi first.
+Unknown numbers are told the service is invite-only. To add a farmer, put their number in the `Farmers` tab with `allowed` = TRUE, or set `ALLOWED_NUMBERS` on Render (comma-separated, no plus sign). A new allowed number is walked through onboarding: name and farm, animals (cows and buffaloes), customers (or `skip`), then an optional saving committee (or `skip`). Every write is confirmed with Haan/Nahi first.
 
 New farmer sheets are copied by Apps Script (`DriveApp.makeCopy`) and data rows are cleared. Until the updated `apps-script/Code.gs` is deployed as a new version of the existing web app, the webhook falls back to the previous single-ledger behaviour so current records keep working. Do not change `SHEETS_SECRET` or `SHEETS_WEBHOOK_URL`.
 
 ## Receipts, edits, and photos
 
 Farmers can text "Aslam ki parchi bhejo" to get a PNG receipt to forward. They can also add, rename, or remove a cow, add a customer, change a rate, correct a previous entry, or delete the last saved row. Photos of khata pages, fodder bills, or receipts are read the same way as text and voice notes; Munshi reads them back and waits for Haan/Nahi before writing.
+
+## Committee and daily expenses
+
+A saving committee (Roman Urdu: committee / kameti / kumitee) is stored on `Committees` (name, amount, frequency, optional start date and organizer) and `Committee_Log` (paid, not paid, or partial for each day or period). `Committee_Status` is derived when the ledger refreshes. Farmers can ask what they paid this month, what is still due, and whether today is paid. If today is unpaid, a normal reply can include one short footer line. Munshi does not send a separate WhatsApp reminder for it.
+
+`Expenses` accepts any daily cost, including mazdoori, tankhwah, bijli, fuel, dawai, kiraya, marammat, and free-form notes. Fodder purchases still go to `Fodder`, not `Expenses`. An expense with no amount is not written. Several costs in one message are confirmed together, with the amount, category, and date.
+
+Examples: `aaj committee di`, `committee nahi di`, `kameti 200 di`, `is mahine committee kitni di`, `aaj 500 mazdoori aur 2000 tankhwah`, `aaj kharcha 80 chai`, `aaj kharcha kitna hua`, `is hafte mazdoori kitni di`. Milk and customer payments are not treated as expenses.
 
 ## Reply language (`REPLY_SCRIPT`)
 

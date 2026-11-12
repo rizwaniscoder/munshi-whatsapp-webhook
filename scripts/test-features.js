@@ -300,6 +300,9 @@ async function main() {
   assert(out.text.includes("Aslam") && out.text.includes("190"), "customers read back: " + out.text);
   await processPayload(sheets, waPayload("wamid.onb.7", newbie, "Haan"));
   out = lastText();
+  assert(/committee|kameti|skip/i.test(out.text), "asks about committee and allows skip: " + out.text);
+  await processPayload(sheets, waPayload("wamid.onb.8", newbie, "skip"));
+  out = lastText();
   assert(out.text.includes("Setup ho gaya") || out.text.includes("18 litre"), "how-to message: " + out.text);
   const done = (await sheets.getFarmer(newbie)).farmer;
   assert(done.onboardingState === "complete", "onboarding complete");
