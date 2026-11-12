@@ -1,0 +1,53 @@
+name: Missing-data reminders
+
+on:
+  schedule:
+    # 10:00 Asia/Karachi (PKT is UTC+5, no daylight saving) = 05:00 UTC
+    - cron: "0 5 * * *"
+    # 19:00 Asia/Karachi = 14:00 UTC
+    - cron: "0 14 * * *"
+  workflow_dispatch:
+    inputs:
+      slot:
+        description: Which check to run
+        required: true
+        type: choice
+        options:
+          - morning
+          - evening
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Run reminder check
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SLOT: ${{ github.event_name == 'workflow_dispatch' && inputs.slot || (github.event.schedule == '0 14 * * *' && 'evening' || 'morning') }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "CRON_SECRET GitHub secret is not set"
+            exit 1
+          fi
+          case "${SLOT}" in
+            morning|evening) ;;
+            *) echo "unexpected slot"; exit 1 ;;
+          esac
+          echo "slot=${SLOT}"
+          code="000"
+          code=$(curl -sS -o /tmp/reminder-body.txt -w "%{http_code}" \
+            --retry 3 --retry-all-errors --retry-delay 20 --max-time 180 \
+            -X POST "https://munshi-whatsapp-webhook.onrender.com/cron/reminders" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Content-Type: application/json" \
+            --data "{\"slot\":\"${SLOT}\"}") || true
+          echo "http=${code}"
+          if [ -f /tmp/reminder-body.txt ]; then
+            cat /tmp/reminder-body.txt
+            echo
+          fi
+          if [ "${code}" != "200" ]; then
+            exit 1
+          fi

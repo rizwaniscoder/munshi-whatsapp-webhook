@@ -13,11 +13,15 @@
  * so the URL stays the same. The first time you deploy this version, Google
  * will ask you to authorize Drive (used only to copy a blank ledger for a
  * new farmer). Do not change SHEETS_SECRET or the web app URL.
+ *
+ * This version also adds Farmers.last_inbound_at and a master-only
+ * Reminder_Log tab. Existing milk, sales, and other rows are kept.
  */
 var DEFAULT_SHEET_ID = "1sIDMkUs76cgl8ecBGIOWFIPiofGzwGJI1D3Az6OyDW8";
 var MASTER_PHONE = "923155506704";
 
 var migratedThisRequest_ = false;
+var masterMigratedThisRequest_ = false;
 
 function doPost(e) {
   try {
@@ -841,6 +845,8 @@ function setLastWrite_(ss, tab, row, type, summary) {
 
 function handle_(body) {
   migratedThisRequest_ = false;
+  masterMigratedThisRequest_ = false;
+  migrateMaster_();
   var started = Date.now();
   var action = body.action;
   if (action === "ping") return { ok: true, multiTenant: true };
@@ -848,6 +854,9 @@ function handle_(body) {
   if (action === "upsertFarmer") return upsertFarmer_(body);
   if (action === "copyLedger") return copyLedger_(body);
   if (action === "listFarmers") return listFarmers_();
+  if (action === "touchLastInbound") return touchLastInbound_(body.phone || body.sender, body.at);
+  if (action === "claimReminder") return claimReminder_(body);
+  if (action === "releaseReminder") return releaseReminder_(body);
   if (action === "isProcessed") return isProcessed_(body.messageId);
   if (action === "markProcessed") return markProcessed_(body.messageId, body.sender);
   if (action === "setPending") return setPending_(body);
@@ -867,7 +876,7 @@ function handle_(body) {
 function farmersData_() {
   var ss = masterSs_();
   var sh = ss.getSheetByName("Farmers");
-  if (!sh) return { sh: null, data: [["phone", "sheet_id", "name", "farm_name", "onboarding_state", "allowed", "created_at"]] };
+  if (!sh) return { sh: null, data: [["phone", "sheet_id", "name", "farm_name", "onboarding_state", "allowed", "created_at", "last_inbound_at"]] };
   return { sh: sh, data: sh.getDataRange().getValues() };
 }
 
@@ -890,10 +899,24 @@ function findFarmerRow_(phone) {
         onboardingState: String(row[4] || ""),
         allowed: isAllowedFlag_(row[5]),
         createdAt: String(row[6] || ""),
+        lastInboundAt: cellInstant_(inboundValue_(header, row)),
       };
     }
   }
   return null;
+}
+
+function inboundValue_(header, row) {
+  var col = headerIndex_(header, "last_inbound_at");
+  if (col === -1) return "";
+  return row[col];
+}
+
+function cellInstant_(value) {
+  if (Object.prototype.toString.call(value) === "[object Date]" && !isNaN(value)) {
+    return Utilities.formatDate(value, "UTC", "yyyy-MM-dd'T'HH:mm:ss'Z'");
+  }
+  return String(value || "");
 }
 
 function farmerJson_(f) {
@@ -906,6 +929,7 @@ function farmerJson_(f) {
     onboardingState: f.onboardingState,
     allowed: f.allowed,
     createdAt: f.createdAt,
+    lastInboundAt: f.lastInboundAt || "",
   };
 }
 
@@ -927,9 +951,91 @@ function listFarmers_() {
       onboardingState: String(row[4] || ""),
       allowed: isAllowedFlag_(row[5]),
       createdAt: String(row[6] || ""),
+      lastInboundAt: cellInstant_(inboundValue_(pack.data[0] || [], row)),
     });
   }
   return { ok: true, farmers: out };
+}
+
+function migrateMaster_() {
+  if (masterMigratedThisRequest_) return;
+  var ss = masterSs_();
+  ensureColumns_(ss, "Farmers", ["last_inbound_at"]);
+  var sh = ensureTab_(ss, "Reminder_Log", ["phone", "date", "slot", "sent_at"]);
+  if (sh && sh.getLastRow() <= 1) {
+    sh.getRange(1, 2, sh.getMaxRows(), 1).setNumberFormat("@");
+    sh.getRange(1, 4, sh.getMaxRows(), 1).setNumberFormat("@");
+  }
+  masterMigratedThisRequest_ = true;
+}
+
+function touchLastInbound_(phone, at) {
+  migrateMaster_();
+  phone = normalizePhone_(phone);
+  if (!phone) return { ok: false, error: "phone required" };
+  var found = findFarmerRow_(phone);
+  if (!found) return { ok: true, updated: false };
+  var pack = farmersData_();
+  var col = headerIndex_(pack.data[0] || [], "last_inbound_at");
+  if (col === -1) return { ok: false, error: "last_inbound_at column missing" };
+  pack.sh.getRange(found.row, col + 1).setValue(String(at || new Date().toISOString()));
+  return { ok: true, updated: true };
+}
+
+function reminderPack_() {
+  migrateMaster_();
+  var ss = masterSs_();
+  var sh = ss.getSheetByName("Reminder_Log");
+  if (!sh) throw new Error("Missing tab: Reminder_Log");
+  return { sh: sh, data: sh.getDataRange().getValues() };
+}
+
+function reminderMatch_(row, header, phone, date, slot) {
+  var phoneCol = headerIndex_(header, "phone");
+  var dateCol = headerIndex_(header, "date");
+  var slotCol = headerIndex_(header, "slot");
+  if (phoneCol === -1) phoneCol = 0;
+  if (dateCol === -1) dateCol = 1;
+  if (slotCol === -1) slotCol = 2;
+  var rowDate = cellDate_(row[dateCol]);
+  if (/^\d{4}-\d{2}-\d{2}/.test(rowDate)) rowDate = String(rowDate).slice(0, 10);
+  return normalizePhone_(row[phoneCol]) === normalizePhone_(phone) &&
+    rowDate === String(date) &&
+    String(row[slotCol] || "") === String(slot);
+}
+
+function claimReminder_(body) {
+  var phone = normalizePhone_(body.phone || body.sender);
+  var date = String(body.date || "");
+  var slot = String(body.slot || "");
+  if (!phone || !date || !slot) return { ok: false, error: "phone, date, and slot required" };
+  var pack = reminderPack_();
+  var header = pack.data[0] || [];
+  var i;
+  for (i = 1; i < pack.data.length; i++) {
+    if (reminderMatch_(pack.data[i], header, phone, date, slot)) {
+      return { ok: true, claimed: false, already: true };
+    }
+  }
+  append_(masterSs_(), "Reminder_Log", [phone, date, slot, String(body.sentAt || new Date().toISOString())]);
+  return { ok: true, claimed: true, already: false };
+}
+
+function releaseReminder_(body) {
+  var phone = normalizePhone_(body.phone || body.sender);
+  var date = String(body.date || "");
+  var slot = String(body.slot || "");
+  var pack = reminderPack_();
+  var header = pack.data[0] || [];
+  var removed = 0;
+  var i;
+  for (i = pack.data.length - 1; i >= 1; i--) {
+    if (reminderMatch_(pack.data[i], header, phone, date, slot)) {
+      pack.sh.deleteRow(i + 1);
+      removed++;
+    }
+  }
+  return { ok: true, removed: removed };
 }
 
 function upsertFarmer_(body) {
@@ -968,6 +1074,8 @@ function copyLedger_(body) {
   var ss = SpreadsheetApp.openById(copy.getId());
   var farmers = ss.getSheetByName("Farmers");
   if (farmers) ss.deleteSheet(farmers);
+  var reminders = ss.getSheetByName("Reminder_Log");
+  if (reminders) ss.deleteSheet(reminders);
   migrateLedger_(ss);
   var tabs = ["Milk_Log", "Sales", "Payments", "Expenses", "Fodder", "Pending", "Processed_Ids", "Last_Write", "Cows", "Customers", "Animal_Events", "Feed_Stock", "Due_Bills", "Upcoming_Events", "Committees", "Committee_Log", "Committee_Status"];
   for (var i = 0; i < tabs.length; i++) clearData_(ss, tabs[i]);
