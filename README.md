@@ -11,6 +11,8 @@ WhatsApp bookkeeping assistant for Munshi, operated by Nodeable AI LLC. Farmers 
 - `GET /privacy` - Privacy Policy
 - `GET /terms` - Terms of Service
 - `GET /data-deletion` - data deletion instructions
+- `GET /r/<token>` - personal mobile voice recorder for one allowed farmer. Replies stay on the page. Unknown tokens get a generic failure.
+- `POST /admin/recorder-links` - list or mint those links. Same `Authorization: Bearer $CRON_SECRET` as the reminder job. No new environment variable.
 
 ## Environment
 
@@ -33,6 +35,28 @@ Until `SHEETS_WEBHOOK_URL` is set, pending records are held in memory only and w
 A GitHub Actions workflow that pings `GET /` every 10 minutes is in `.github/workflows/keepalive.yml`. Scheduled runs can be delayed by GitHub.
 
 Missing-data reminders run from `.github/workflows/reminders.yml` at 10:00 and 19:00 Asia/Karachi (05:00 and 14:00 UTC; Pakistan has no daylight saving). The morning check names active animals with no subah milk log. The evening check names animals with no shaam log, animals with neither session, litres recorded today that were not sold, and sales that exceed recorded milk. One Roman Urdu message per farmer per slot, and only if that farmer messaged within the last 24 hours. The same slot is not sent twice in one day. Normal replies still use the existing footer. GitHub's schedule only runs from the default branch, so it starts after this is on `main`. Add `CRON_SECRET` on Render and as a GitHub Actions secret before relying on it.
+
+## Web recorder
+
+Farmers who cannot use WhatsApp open `https://munshi-whatsapp-webhook.onrender.com/r/<token>` in Android Chrome. The link is personal. A phone number is not enough. The page has one record button, then the same Roman Urdu summary with Haan, Nahi, and Edit. Confirmed rows go through the existing Gemini and Google Sheets path. The page does not send a WhatsApp message. A web visit still updates `last_inbound_at`, so the 10:00 and 19:00 reminders can see a fresh 24-hour window.
+
+`web_token` is a column on the master `Farmers` tab. Apps Script adds it in `migrateMaster_`, not in `extraColumns_` (that map is only for columns on each farm ledger). Paste `apps-script/Code.gs` and deploy a new version of the same web app before minting links. Keep the URL and do not change `SHEETS_SECRET`.
+
+After that deploy, mint or list links with either of these. The output contains secrets. Do not commit it or paste it into chat.
+
+```bash
+node scripts/mint-recorder-links.js --remote
+```
+
+`CRON_SECRET` must already be in the environment. Or call the service directly:
+
+```bash
+curl -s -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json" \
+  -d '{"phones":["923155506704","923205506704"]}' \
+  https://munshi-whatsapp-webhook.onrender.com/admin/recorder-links
+```
+
+Allowed farmers with no token get one. Farmers who are not allowed are skipped. Running it again returns the same link. There is no new Render env var. Browser recordings are often `audio/webm`; the server sends `audio/ogg` when `ffmpeg` can remux them, and otherwise sends `audio/webm` through the same Gemini audio path WhatsApp uses.
 
 ## Multi-tenant ledgers
 

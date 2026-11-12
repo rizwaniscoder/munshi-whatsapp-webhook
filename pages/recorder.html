@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#14532d">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Munshi">
+  <title>Munshi</title>
+  <link rel="manifest" href="__MANIFEST_HREF__">
+  <link rel="icon" href="/recorder/icon-192.png">
+  <link rel="apple-touch-icon" href="/recorder/icon-192.png">
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #142018;
+      --muted: #3f4f44;
+      --paper: #f4f7f2;
+      --card: #ffffff;
+      --green: #166534;
+      --green-dark: #14532d;
+      --line: #d7e3d6;
+      --danger: #b91c1c;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      min-height: 100dvh;
+      font-family: "Noto Sans", "Segoe UI", sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      padding: calc(16px + env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom));
+    }
+    main {
+      max-width: 32rem;
+      margin: 0 auto;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.7rem;
+    }
+    header p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 1.05rem;
+    }
+    .hint {
+      margin: 14px 0 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    button, input {
+      font: inherit;
+    }
+    #record {
+      width: 100%;
+      margin-top: 22px;
+      min-height: 7.5rem;
+      border: 0;
+      border-radius: 1.4rem;
+      background: var(--green);
+      color: white;
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      touch-action: manipulation;
+    }
+    #record[data-state="recording"] { background: var(--danger); }
+    #record:disabled { opacity: 0.65; }
+    #status {
+      min-height: 1.5rem;
+      margin: 14px 0 0;
+      font-size: 1.15rem;
+      font-weight: 650;
+    }
+    #reply {
+      margin-top: 16px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 1rem;
+      padding: 16px;
+      white-space: pre-wrap;
+      font-size: 1.15rem;
+      line-height: 1.45;
+    }
+    #reply:empty { display: none; }
+    #reply img {
+      display: block;
+      max-width: 100%;
+      margin-top: 12px;
+      border-radius: 0.6rem;
+    }
+    #actions {
+      display: none;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    #actions button {
+      flex: 1;
+      min-height: 4.2rem;
+      border-radius: 0.9rem;
+      border: 2px solid var(--green-dark);
+      background: white;
+      color: var(--green-dark);
+      font-size: 1.25rem;
+      font-weight: 700;
+      touch-action: manipulation;
+    }
+    #actions button[data-action="confirm_yes"] {
+      background: var(--green);
+      color: white;
+    }
+    form {
+      display: flex;
+      gap: 8px;
+      margin-top: 18px;
+    }
+    input[type="text"] {
+      flex: 1;
+      min-height: 3.6rem;
+      border-radius: 0.9rem;
+      border: 1px solid var(--line);
+      padding: 0 14px;
+      font-size: 1.05rem;
+      background: white;
+    }
+    form button {
+      min-height: 3.6rem;
+      min-width: 6.5rem;
+      border: 0;
+      border-radius: 0.9rem;
+      background: var(--green-dark);
+      color: white;
+      font-weight: 700;
+      touch-action: manipulation;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Munshi</h1>
+      <p id="farm"></p>
+    </header>
+    <p class="hint">Record dabain, phir rok dein. Chrome menu se Home screen pe add kar sakte hain.</p>
+    <button id="record" type="button" data-state="idle">Record</button>
+    <p id="status" role="status"></p>
+    <div id="reply" role="status"></div>
+    <div id="actions"></div>
+    <form id="text-form">
+      <input id="text" type="text" name="text" maxlength="2000" autocomplete="off" placeholder="Yahan likh kar bhejein">
+      <button type="submit">Bhejein</button>
+    </form>
+  </main>
+  <script id="boot" type="application/json">__BOOT_JSON__</script>
+  <script>
+    const boot = JSON.parse(document.getElementById("boot").textContent);
+    const token = location.pathname.split("/").filter(Boolean).pop();
+    const farm = document.getElementById("farm");
+    const recordBtn = document.getElementById("record");
+    const statusEl = document.getElementById("status");
+    const replyEl = document.getElementById("reply");
+    const actionsEl = document.getElementById("actions");
+    const form = document.getElementById("text-form");
+    const textInput = document.getElementById("text");
+    farm.textContent = boot.farm || "Munshi";
+
+    let recorder = null;
+    let chunks = [];
+    let stopTimer = 0;
+    let busy = false;
+
+    function pickMime() {
+      const types = ["audio/ogg;codecs=opus", "audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
+      if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return "";
+      for (const type of types) {
+        if (MediaRecorder.isTypeSupported(type)) return type;
+      }
+      return "";
+    }
+
+    function setBusy(on) {
+      busy = on;
+      recordBtn.disabled = on && recordBtn.dataset.state !== "recording";
+      form.querySelector("button").disabled = on;
+      for (const button of actionsEl.querySelectorAll("button")) button.disabled = on;
+    }
+
+    const ACTION_LABELS = { confirm_yes: "Haan", confirm_no: "Nahi", confirm_edit: "Edit" };
+
+    function showReplies(replies) {
+      replyEl.textContent = "";
+      actionsEl.innerHTML = "";
+      actionsEl.style.display = "none";
+      const parts = [];
+      let actions = [];
+      for (const reply of replies || []) {
+        if (reply.text) parts.push(reply.text);
+        if (reply.dataUrl) {
+          const img = document.createElement("img");
+          img.alt = "Parchi";
+          img.src = reply.dataUrl;
+          replyEl.appendChild(img);
+        }
+        if (reply.actions && reply.actions.length) actions = reply.actions;
+      }
+      if (parts.length) replyEl.insertBefore(document.createTextNode(parts.join("\n\n")), replyEl.firstChild);
+      if (!actions.length) return;
+      actionsEl.style.display = "flex";
+      for (const action of actions) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.action = action.id;
+        button.textContent = ACTION_LABELS[action.id] || action.label || action.id;
+        button.addEventListener("click", () => {
+          if (busy) return;
+          sendTurn({ action: action.id });
+        });
+        actionsEl.appendChild(button);
+      }
+    }
+
+    async function sendTurn(payload, isAudio) {
+      setBusy(true);
+      statusEl.textContent = "Likh raha hoon...";
+      try {
+        const url = isAudio ? "/r/" + encodeURIComponent(token) + "/audio" : "/r/" + encodeURIComponent(token) + "/turn";
+        const res = await fetch(url, isAudio ? {
+          method: "POST",
+          headers: { "Content-Type": payload.type || "audio/webm" },
+          body: payload,
+        } : {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.ok === false) {
+          statusEl.textContent = data.error || "Masla aa gaya. Thori dair baad dubara koshish karein.";
+          return;
+        }
+        statusEl.textContent = "";
+        showReplies(data.replies || []);
+      } catch (err) {
+        statusEl.textContent = "Internet nahi chal raha. Dubara koshish karein.";
+      } finally {
+        setBusy(false);
+        recordBtn.disabled = false;
+      }
+    }
+
+    async function startRecording() {
+      if (!navigator.mediaDevices || !window.MediaRecorder) {
+        statusEl.textContent = "Yeh browser record nahi kar sakta. Chrome use karein.";
+        return;
+      }
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (err) {
+        statusEl.textContent = "Mic ki ijazat chahiye. Browser settings mein allow karein.";
+        return;
+      }
+      const mime = pickMime();
+      chunks = [];
+      recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size) chunks.push(event.data);
+      };
+      recorder.onstop = async () => {
+        clearTimeout(stopTimer);
+        stream.getTracks().forEach((track) => track.stop());
+        recordBtn.dataset.state = "idle";
+        recordBtn.textContent = "Record";
+        const type = recorder.mimeType || mime || "audio/webm";
+        const blob = new Blob(chunks, { type });
+        if (!blob.size) {
+          statusEl.textContent = "Awaz nahi mili. Dobara record karein.";
+          return;
+        }
+        await sendTurn(blob, true);
+      };
+      recorder.start();
+      recordBtn.dataset.state = "recording";
+      recordBtn.textContent = "Rok dein";
+      statusEl.textContent = "Sun raha hoon...";
+      stopTimer = setTimeout(() => {
+        if (recorder && recorder.state === "recording") recorder.stop();
+      }, 90000);
+    }
+
+    recordBtn.addEventListener("click", () => {
+      if (busy) return;
+      if (recorder && recorder.state === "recording") {
+        recorder.stop();
+        return;
+      }
+      startRecording();
+    });
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const text = textInput.value.trim();
+      if (!text || busy) return;
+      textInput.value = "";
+      sendTurn({ text: text }, false);
+    });
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/recorder/sw.js", { scope: "/r/" }).catch(() => {});
+    }
+  </script>
+</body>
+</html>
