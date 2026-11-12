@@ -4,6 +4,7 @@ const { createSheets } = require("./lib/sheets");
 const { processPayload } = require("./lib/bot");
 const { authorizedCron, cronConfigured } = require("./lib/cron-auth");
 const { runReminderJob } = require("./lib/reminder-job");
+const { mountRecorder } = require("./lib/recorder-routes");
 
 const app = express();
 app.use(express.json({ limit: "2mb" }));
@@ -85,7 +86,13 @@ app.post("/webhook", (req, res) => {
   });
 });
 
+mountRecorder(app, sheets);
+
 const port = process.env.PORT || 10000;
-app.listen(port, "0.0.0.0", () => {
-  console.log(`munshi webhook listening on ${port}`);
-});
+if (require.main === module) {
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`munshi webhook listening on ${port}`);
+  });
+}
+
+module.exports = { app };

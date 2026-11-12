@@ -14,8 +14,10 @@
  * will ask you to authorize Drive (used only to copy a blank ledger for a
  * new farmer). Do not change SHEETS_SECRET or the web app URL.
  *
- * This version also adds Farmers.last_inbound_at and a master-only
- * Reminder_Log tab. Existing milk, sales, and other rows are kept.
+ * This version also adds Farmers.last_inbound_at, Farmers.web_token, and a
+ * master-only Reminder_Log tab. Existing milk, sales, and other rows are kept.
+ * web_token is the personal recorder link secret. Paste this file and deploy
+ * a new version of the same web app before minting recorder links.
  */
 var DEFAULT_SHEET_ID = "1sIDMkUs76cgl8ecBGIOWFIPiofGzwGJI1D3Az6OyDW8";
 var MASTER_PHONE = "923155506704";
@@ -886,7 +888,10 @@ function handle_(body) {
   if (action === "getFarmer") return getFarmer_(body.phone || body.sender);
   if (action === "upsertFarmer") return upsertFarmer_(body);
   if (action === "copyLedger") return copyLedger_(body);
-  if (action === "listFarmers") return listFarmers_();
+  if (action === "listFarmers") return listFarmers_(false);
+  if (action === "listRecorderFarmers") return listFarmers_(true);
+  if (action === "findFarmerByToken") return findFarmerByToken_(body.webToken || body.token);
+  if (action === "setWebToken") return setWebToken_(body);
   if (action === "touchLastInbound") return touchLastInbound_(body.phone || body.sender, body.at);
   if (action === "claimReminder") return claimReminder_(body);
   if (action === "releaseReminder") return releaseReminder_(body);
@@ -909,7 +914,7 @@ function handle_(body) {
 function farmersData_() {
   var ss = masterSs_();
   var sh = ss.getSheetByName("Farmers");
-  if (!sh) return { sh: null, data: [["phone", "sheet_id", "name", "farm_name", "onboarding_state", "allowed", "created_at", "last_inbound_at"]] };
+  if (!sh) return { sh: null, data: [["phone", "sheet_id", "name", "farm_name", "onboarding_state", "allowed", "created_at", "last_inbound_at", "web_token"]] };
   return { sh: sh, data: sh.getDataRange().getValues() };
 }
 
@@ -933,6 +938,7 @@ function findFarmerRow_(phone) {
         allowed: isAllowedFlag_(row[5]),
         createdAt: String(row[6] || ""),
         lastInboundAt: cellInstant_(inboundValue_(header, row)),
+        webToken: webTokenValue_(header, row),
       };
     }
   }
@@ -943,6 +949,12 @@ function inboundValue_(header, row) {
   var col = headerIndex_(header, "last_inbound_at");
   if (col === -1) return "";
   return row[col];
+}
+
+function webTokenValue_(header, row) {
+  var col = headerIndex_(header, "web_token");
+  if (col === -1) return "";
+  return String(row[col] || "");
 }
 
 function cellInstant_(value) {
@@ -963,20 +975,23 @@ function farmerJson_(f) {
     allowed: f.allowed,
     createdAt: f.createdAt,
     lastInboundAt: f.lastInboundAt || "",
+    webToken: f.webToken || "",
   };
 }
 
 function getFarmer_(phone) {
-  return { ok: true, farmer: farmerJson_(findFarmerRow_(phone)) };
+  var farmer = farmerJson_(findFarmerRow_(phone));
+  if (farmer) delete farmer.webToken;
+  return { ok: true, farmer: farmer };
 }
 
-function listFarmers_() {
+function listFarmers_(withTokens) {
   var pack = farmersData_();
   var out = [];
   for (var i = 1; i < pack.data.length; i++) {
     var row = pack.data[i];
     if (!row[0]) continue;
-    out.push({
+    var item = {
       phone: normalizePhone_(row[0]),
       sheetId: String(row[1] || ""),
       name: String(row[2] || ""),
@@ -985,7 +1000,9 @@ function listFarmers_() {
       allowed: isAllowedFlag_(row[5]),
       createdAt: String(row[6] || ""),
       lastInboundAt: cellInstant_(inboundValue_(pack.data[0] || [], row)),
-    });
+    };
+    if (withTokens) item.webToken = webTokenValue_(pack.data[0] || [], row);
+    out.push(item);
   }
   return { ok: true, farmers: out };
 }
@@ -993,7 +1010,15 @@ function listFarmers_() {
 function migrateMaster_() {
   if (masterMigratedThisRequest_) return;
   var ss = masterSs_();
-  ensureColumns_(ss, "Farmers", ["last_inbound_at"]);
+  ensureColumns_(ss, "Farmers", ["last_inbound_at", "web_token"]);
+  var farmers = ss.getSheetByName("Farmers");
+  if (farmers) {
+    var head = farmers.getRange(1, 1, 1, Math.max(farmers.getLastColumn(), 1)).getValues()[0];
+    var tokenCol = headerIndex_(head, "web_token");
+    if (tokenCol !== -1 && farmers.getRange(1, tokenCol + 1).getNumberFormat() !== "@") {
+      farmers.getRange(1, tokenCol + 1, farmers.getMaxRows(), 1).setNumberFormat("@");
+    }
+  }
   var sh = ensureTab_(ss, "Reminder_Log", ["phone", "date", "slot", "sent_at"]);
   if (sh && sh.getLastRow() <= 1) {
     sh.getRange(1, 2, sh.getMaxRows(), 1).setNumberFormat("@");
@@ -1012,6 +1037,59 @@ function touchLastInbound_(phone, at) {
   var col = headerIndex_(pack.data[0] || [], "last_inbound_at");
   if (col === -1) return { ok: false, error: "last_inbound_at column missing" };
   pack.sh.getRange(found.row, col + 1).setValue(String(at || new Date().toISOString()));
+  return { ok: true, updated: true };
+}
+
+function findFarmerByToken_(token) {
+  token = String(token || "").trim();
+  if (!token) return { ok: true, farmer: null };
+  migrateMaster_();
+  var pack = farmersData_();
+  var header = pack.data[0] || [];
+  var col = headerIndex_(header, "web_token");
+  if (col === -1) return { ok: true, farmer: null };
+  var i;
+  for (i = 1; i < pack.data.length; i++) {
+    if (String(pack.data[i][col] || "") !== token) continue;
+    var row = pack.data[i];
+    return {
+      ok: true,
+      farmer: farmerJson_({
+        phone: normalizePhone_(row[0]),
+        sheetId: String(row[1] || ""),
+        name: String(row[2] || ""),
+        farmName: String(row[3] || ""),
+        onboardingState: String(row[4] || ""),
+        allowed: isAllowedFlag_(row[5]),
+        createdAt: String(row[6] || ""),
+        lastInboundAt: cellInstant_(inboundValue_(header, row)),
+        webToken: "",
+      }),
+    };
+  }
+  return { ok: true, farmer: null };
+}
+
+function setWebToken_(body) {
+  migrateMaster_();
+  var phone = normalizePhone_(body.phone || body.sender);
+  var token = String(body.webToken || body.token || "").trim();
+  if (!phone || !token) return { ok: false, error: "phone and token required" };
+  var pack = farmersData_();
+  if (!pack.sh) return { ok: false, error: "Missing tab: Farmers" };
+  var header = pack.data[0] || [];
+  var col = headerIndex_(header, "web_token");
+  if (col === -1) return { ok: false, error: "web_token column missing" };
+  var i;
+  for (i = 1; i < pack.data.length; i++) {
+    if (String(pack.data[i][col] || "") === token && normalizePhone_(pack.data[i][0]) !== phone) {
+      return { ok: false, error: "token already used" };
+    }
+  }
+  var found = findFarmerRow_(phone);
+  if (!found) return { ok: false, error: "farmer not found" };
+  pack.sh.getRange(found.row, col + 1).setNumberFormat("@");
+  pack.sh.getRange(found.row, col + 1).setValue(token);
   return { ok: true, updated: true };
 }
 
