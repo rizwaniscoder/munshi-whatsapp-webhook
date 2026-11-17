@@ -79,7 +79,7 @@ The same work can be run by hand where those variables are already set:
 node scripts/import-from-sheets.js
 ```
 
-`SHEETS_URL` is accepted as an alias of `SHEETS_WEBHOOK_URL`. Running it again updates the same rows; it does not delete rows that were removed from the sheet, and it does not remove rows the web app added later. The gateway does not export the pending-confirmation queue or the reminder log, so finish or cancel open confirms before the cutover. Reminder claims start empty in Postgres.
+`SHEETS_URL` is accepted as an alias of `SHEETS_WEBHOOK_URL`. The import calls `listFarmers` and `readRecent` with `sender`, `phone`, `sheetId`, `days`, and `refresh: false`, which the Apps Script deployed before the web recorder understands. If `listRecorderFarmers` is missing or fails, it uses `listFarmers`. Running it again updates the same rows; it does not delete rows that were removed from the sheet, and it does not remove rows the web app added later. The gateway does not export the pending-confirmation queue or the reminder log, so finish or cancel open confirms before the cutover. Reminder claims start empty in Postgres.
 
 Mint links after the farmers are in Postgres. Existing `web_token` values are copied by the import, so farmers keep the same `/r/<token>` link.
 
