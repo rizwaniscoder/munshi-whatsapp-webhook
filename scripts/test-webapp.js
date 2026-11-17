@@ -127,7 +127,17 @@ async function main() {
     process.env.SUPABASE_URL = "https://example.supabase.co";
     assert.throws(() => createSheets(), /SUPABASE_SERVICE_ROLE_KEY/);
     process.env.SUPABASE_SERVICE_ROLE_KEY = "test-only-not-a-real-key";
-    assert.ok(createSheets() instanceof SupabaseSheets);
+    const nativeWebSocket = globalThis.WebSocket;
+    Object.defineProperty(globalThis, "WebSocket", { value: undefined, configurable: true, writable: true });
+    try {
+      assert.ok(createSheets() instanceof SupabaseSheets);
+    } finally {
+      Object.defineProperty(globalThis, "WebSocket", {
+        value: nativeWebSocket,
+        configurable: true,
+        writable: true,
+      });
+    }
   } finally {
     for (const [key, value] of Object.entries(savedEnv)) {
       if (value == null) delete process.env[key];

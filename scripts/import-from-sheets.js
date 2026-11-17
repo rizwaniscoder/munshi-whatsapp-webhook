@@ -3,8 +3,8 @@
 // Re-running updates the same rows and does not delete anything the sheet no longer has.
 // Prints counts only. Do not commit the environment or the output if you add tokens later.
 
-const { createClient } = require("@supabase/supabase-js");
 const { AppsScriptSheets } = require("../lib/sheets");
+const { createServiceClient } = require("../lib/supabase-store");
 const { normalizePhone } = require("../lib/config");
 const {
   memoryFromSheetsExport,
@@ -96,9 +96,7 @@ async function main() {
 
   const mem = await memoryFromSheetsExport({ farmers, ledgers });
   const snapshot = memoryToSnapshot(mem);
-  const client = createClient(supabaseUrl, serviceKey, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-  });
+  const client = createServiceClient(supabaseUrl, serviceKey);
 
   await upsertChunks(client, "farmers", farmerUpserts(snapshot), "phone");
   const found = await client.from("farmers").select("id, phone");
