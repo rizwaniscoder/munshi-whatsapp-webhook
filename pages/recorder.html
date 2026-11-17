@@ -28,35 +28,20 @@
     html, body { margin: 0; padding: 0; }
     body {
       min-height: 100dvh;
-      font-family: "Noto Sans", "Segoe UI", sans-serif;
+      font-family: "Segoe UI", "Noto Sans", sans-serif;
       background: var(--paper);
       color: var(--ink);
-      padding: calc(16px + env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom));
+      padding: calc(12px + env(safe-area-inset-top)) 12px calc(92px + env(safe-area-inset-bottom));
     }
-    main {
-      max-width: 32rem;
-      margin: 0 auto;
-    }
-    header h1 {
-      margin: 0;
-      font-size: 1.7rem;
-    }
-    header p {
-      margin: 4px 0 0;
-      color: var(--muted);
-      font-size: 1.05rem;
-    }
-    .hint {
-      margin: 14px 0 0;
-      color: var(--muted);
-      font-size: 0.95rem;
-    }
-    button, input {
-      font: inherit;
-    }
+    main { max-width: 36rem; margin: 0 auto; }
+    header h1 { margin: 0; font-size: 1.7rem; }
+    header p { margin: 4px 0 0; color: var(--muted); font-size: 1.05rem; }
+    button, input, select { font: inherit; }
+    button { touch-action: manipulation; }
+    .hint { margin: 12px 0 0; color: var(--muted); font-size: 1rem; }
     #record {
       width: 100%;
-      margin-top: 22px;
+      margin-top: 18px;
       min-height: 7.5rem;
       border: 0;
       border-radius: 1.4rem;
@@ -64,19 +49,12 @@
       color: white;
       font-size: 2rem;
       font-weight: 700;
-      letter-spacing: 0.01em;
-      touch-action: manipulation;
     }
     #record[data-state="recording"] { background: var(--danger); }
     #record:disabled { opacity: 0.65; }
-    #status {
-      min-height: 1.5rem;
-      margin: 14px 0 0;
-      font-size: 1.15rem;
-      font-weight: 650;
-    }
+    .status { min-height: 1.4rem; margin: 12px 0 0; font-size: 1.15rem; font-weight: 650; }
     #reply {
-      margin-top: 16px;
+      margin-top: 14px;
       background: var(--card);
       border: 1px solid var(--line);
       border-radius: 1rem;
@@ -86,56 +64,84 @@
       line-height: 1.45;
     }
     #reply:empty { display: none; }
-    #reply img {
-      display: block;
-      max-width: 100%;
-      margin-top: 12px;
-      border-radius: 0.6rem;
-    }
-    #actions {
-      display: none;
-      gap: 8px;
-      margin-top: 12px;
-    }
-    #actions button {
-      flex: 1;
-      min-height: 4.2rem;
+    #reply img { display: block; max-width: 100%; margin-top: 12px; border-radius: 0.6rem; }
+    #actions, .row-actions, .choice { display: flex; gap: 8px; }
+    #actions { display: none; margin-top: 12px; }
+    #actions button, .big, .choice button, .row-actions button {
+      min-height: 3.6rem;
       border-radius: 0.9rem;
       border: 2px solid var(--green-dark);
       background: white;
       color: var(--green-dark);
-      font-size: 1.25rem;
+      font-size: 1.2rem;
       font-weight: 700;
-      touch-action: manipulation;
     }
-    #actions button[data-action="confirm_yes"] {
-      background: var(--green);
-      color: white;
-    }
-    form {
-      display: flex;
-      gap: 8px;
-      margin-top: 18px;
-    }
-    input[type="text"] {
-      flex: 1;
+    #actions button { flex: 1; }
+    #actions button[data-action="confirm_yes"] { background: var(--green); color: white; }
+    form.line, .stack { display: flex; gap: 8px; margin-top: 14px; }
+    .stack { flex-direction: column; }
+    input[type="text"], input[type="number"], select {
+      width: 100%;
       min-height: 3.6rem;
       border-radius: 0.9rem;
       border: 1px solid var(--line);
       padding: 0 14px;
-      font-size: 1.05rem;
+      font-size: 1.15rem;
       background: white;
     }
-    form button {
+    form.line button, .big {
       min-height: 3.6rem;
-      min-width: 6.5rem;
       border: 0;
       border-radius: 0.9rem;
       background: var(--green-dark);
       color: white;
       font-weight: 700;
-      touch-action: manipulation;
     }
+    form.line button { min-width: 6.5rem; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 1rem;
+      padding: 14px;
+      margin-top: 12px;
+    }
+    .card h2 { margin: 0 0 8px; font-size: 1.35rem; }
+    .muted { color: var(--muted); font-size: 1.05rem; }
+    .tot { font-size: 1.35rem; font-weight: 750; margin: 8px 0; }
+    .cow { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 1.15rem; }
+    nav {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 4px;
+      padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+      background: white;
+      border-top: 1px solid var(--line);
+    }
+    nav button {
+      min-height: 4.2rem;
+      border: 0;
+      border-radius: 0.8rem;
+      background: transparent;
+      color: var(--ink);
+      font-size: 0.95rem;
+      font-weight: 700;
+    }
+    nav button[aria-current="page"] { background: #dcfce7; color: var(--green-dark); }
+    nav span { display: block; font-size: 1.35rem; line-height: 1.2; }
+    #confirm {
+      position: fixed;
+      left: 12px; right: 12px;
+      bottom: calc(84px + env(safe-area-inset-bottom));
+      background: white;
+      border: 2px solid var(--danger);
+      border-radius: 1rem;
+      padding: 12px;
+      display: none;
+    }
+    #confirm p { margin: 0 0 8px; font-size: 1.2rem; font-weight: 700; }
+    .danger { background: var(--danger) !important; color: white !important; border-color: var(--danger) !important; }
   </style>
 </head>
 <body>
@@ -144,20 +150,53 @@
       <h1>Munshi</h1>
       <p id="farm"></p>
     </header>
-    <p class="hint">Record dabain, phir rok dein. Chrome menu se Home screen pe add kar sakte hain.</p>
-    <button id="record" type="button" data-state="idle">Record</button>
-    <p id="status" role="status"></p>
-    <div id="reply" role="status"></div>
-    <div id="actions"></div>
-    <form id="text-form">
-      <input id="text" type="text" name="text" maxlength="2000" autocomplete="off" placeholder="Yahan likh kar bhejein">
-      <button type="submit">Bhejein</button>
-    </form>
+    <section id="pane-bolein">
+      <p class="hint">Bolein: record dabain, phir rok dein. Chrome menu se Home screen pe add kar sakte hain.</p>
+      <button id="record" type="button" data-state="idle">Record</button>
+      <p id="status" class="status" role="status"></p>
+      <div id="reply" role="status"></div>
+      <div id="actions"></div>
+      <form id="text-form" class="line">
+        <input id="text" type="text" name="text" maxlength="2000" autocomplete="off" placeholder="Yahan likh kar bhejein">
+        <button type="submit">Bhejein</button>
+      </form>
+    </section>
+    <section id="pane-aaj" hidden>
+      <p id="aaj-status" class="status" role="status"></p>
+      <div id="aaj-body"></div>
+    </section>
+    <section id="pane-grahak" hidden>
+      <p id="grahak-status" class="status" role="status"></p>
+      <div id="grahak-body"></div>
+    </section>
+    <section id="pane-khata" hidden>
+      <p id="khata-status" class="status" role="status"></p>
+      <div id="khata-body"></div>
+    </section>
+    <section id="pane-hisaab" hidden>
+      <p id="hisaab-status" class="status" role="status"></p>
+      <div id="hisaab-body"></div>
+    </section>
   </main>
+  <div id="confirm">
+    <p>Pakka hatana hai?</p>
+    <div class="choice">
+      <button type="button" id="confirm-yes">Haan, hatayein</button>
+      <button type="button" id="confirm-no">Nahi</button>
+    </div>
+  </div>
+  <nav>
+    <button type="button" data-tab="bolein"><span>🎤</span>Bolein</button>
+    <button type="button" data-tab="aaj"><span>🥛</span>Aaj</button>
+    <button type="button" data-tab="grahak"><span>👤</span>Grahak</button>
+    <button type="button" data-tab="khata"><span>📒</span>Khata</button>
+    <button type="button" data-tab="hisaab"><span>📊</span>Hisaab</button>
+  </nav>
   <script id="boot" type="application/json">__BOOT_JSON__</script>
   <script>
     const boot = JSON.parse(document.getElementById("boot").textContent);
     const token = location.pathname.split("/").filter(Boolean).pop();
+    const base = "/r/" + encodeURIComponent(token);
     const farm = document.getElementById("farm");
     const recordBtn = document.getElementById("record");
     const statusEl = document.getElementById("status");
@@ -165,12 +204,16 @@
     const actionsEl = document.getElementById("actions");
     const form = document.getElementById("text-form");
     const textInput = document.getElementById("text");
+    const confirmBox = document.getElementById("confirm");
     farm.textContent = boot.farm || "Munshi";
 
     let recorder = null;
     let chunks = [];
     let stopTimer = 0;
     let busy = false;
+    let pendingDelete = null;
+
+    const ACTION_LABELS = { confirm_yes: "Haan", confirm_no: "Nahi", confirm_edit: "Edit" };
 
     function pickMime() {
       const types = ["audio/ogg;codecs=opus", "audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
@@ -187,8 +230,6 @@
       form.querySelector("button").disabled = on;
       for (const button of actionsEl.querySelectorAll("button")) button.disabled = on;
     }
-
-    const ACTION_LABELS = { confirm_yes: "Haan", confirm_no: "Nahi", confirm_edit: "Edit" };
 
     function showReplies(replies) {
       replyEl.textContent = "";
@@ -226,7 +267,7 @@
       setBusy(true);
       statusEl.textContent = "Likh raha hoon...";
       try {
-        const url = isAudio ? "/r/" + encodeURIComponent(token) + "/audio" : "/r/" + encodeURIComponent(token) + "/turn";
+        const url = isAudio ? base + "/audio" : base + "/turn";
         const res = await fetch(url, isAudio ? {
           method: "POST",
           headers: { "Content-Type": payload.type || "audio/webm" },
@@ -307,6 +348,424 @@
       textInput.value = "";
       sendTurn({ text: text }, false);
     });
+
+    function el(tag, text, className) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text != null) node.textContent = text;
+      return node;
+    }
+
+    function field(label, node) {
+      const wrap = el("label", null, "stack");
+      wrap.appendChild(el("span", label, "muted"));
+      wrap.appendChild(node);
+      return wrap;
+    }
+
+    function input(type, placeholder) {
+      const node = document.createElement("input");
+      node.type = type;
+      node.placeholder = placeholder || "";
+      node.autocomplete = "off";
+      if (type === "number") {
+        node.inputMode = "decimal";
+        node.min = "0";
+        node.step = "0.1";
+      }
+      return node;
+    }
+
+    async function api(path, body) {
+      const res = await fetch(base + "/api/" + path, body ? {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      } : { method: "GET" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) {
+        const err = new Error(data.error || "Masla aa gaya.");
+        err.status = res.status;
+        throw err;
+      }
+      return data;
+    }
+
+    function askDelete(path, body) {
+      pendingDelete = { path, body };
+      confirmBox.style.display = "block";
+    }
+
+    document.getElementById("confirm-no").addEventListener("click", () => {
+      pendingDelete = null;
+      confirmBox.style.display = "none";
+    });
+    document.getElementById("confirm-yes").addEventListener("click", async () => {
+      const job = pendingDelete;
+      pendingDelete = null;
+      confirmBox.style.display = "none";
+      if (!job) return;
+      try {
+        await api(job.path, Object.assign({ confirm: true }, job.body));
+        showTab(job.path === "khata" ? "khata" : job.path === "grahak" ? "grahak" : "aaj");
+      } catch (err) {
+        const slot = document.getElementById(job.path + "-status");
+        if (slot) slot.textContent = err.message;
+      }
+    });
+
+    function money(n) {
+      const value = Math.round(Number(n) || 0);
+      return "Rs " + value;
+    }
+
+    async function renderAaj() {
+      const status = document.getElementById("aaj-status");
+      const root = document.getElementById("aaj-body");
+      status.textContent = "La raha hoon...";
+      root.textContent = "";
+      try {
+        const data = await api("aaj");
+        status.textContent = "";
+        const card = el("div", null, "card");
+        card.appendChild(el("h2", "Aaj ka doodh"));
+        card.appendChild(el("p", "Doodh " + data.milk_litres + " L", "tot"));
+        card.appendChild(el("p", "Becha " + data.sold_litres + " L", "tot"));
+        card.appendChild(el("p", "Bacha " + data.unsold_litres + " L", "tot"));
+        for (const cow of data.cows || []) {
+          const line = el("div", null, "cow");
+          line.appendChild(el("strong", cow.name));
+          line.appendChild(el("span", "Subah " + cow.subah + " · Shaam " + cow.shaam));
+          card.appendChild(line);
+          for (const row of cow.rows || []) {
+            const actions = el("div", null, "row-actions");
+            const edit = el("button", "Badlein");
+            edit.type = "button";
+            edit.addEventListener("click", async () => {
+              const next = window.prompt("Naye litre?", String(row.litres));
+              if (next == null) return;
+              try {
+                await api("aaj", {
+                  op: "update",
+                  date: row.date,
+                  session: row.session,
+                  cow_name: row.cow_name,
+                  litres: row.litres,
+                  new_litres: Number(next),
+                });
+                renderAaj();
+              } catch (err) { status.textContent = err.message; }
+            });
+            const del = el("button", "Hatayein");
+            del.type = "button";
+            del.className = "danger";
+            del.addEventListener("click", () => askDelete("aaj", {
+              op: "delete",
+              date: row.date,
+              session: row.session,
+              cow_name: row.cow_name,
+              litres: row.litres,
+            }));
+            actions.appendChild(edit);
+            actions.appendChild(del);
+            card.appendChild(actions);
+          }
+        }
+        root.appendChild(card);
+
+        const formCard = el("form", null, "card");
+        formCard.appendChild(el("h2", "Doodh likhein"));
+        const cow = input("text", "Gay ka naam");
+        const session = document.createElement("select");
+        session.appendChild(new Option("Subah", "am"));
+        session.appendChild(new Option("Shaam", "pm"));
+        const litres = input("number", "Litre");
+        formCard.appendChild(field("Gay", cow));
+        formCard.appendChild(field("Waqt", session));
+        formCard.appendChild(field("Litre", litres));
+        const save = el("button", "Likhein");
+        save.type = "submit";
+        save.className = "big";
+        formCard.appendChild(save);
+        formCard.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          try {
+            await api("aaj", { op: "add", cow_name: cow.value, session: session.value, litres: Number(litres.value) });
+            renderAaj();
+          } catch (err) { status.textContent = err.message; }
+        });
+        root.appendChild(formCard);
+
+        const sale = el("form", null, "card");
+        sale.appendChild(el("h2", "Becha"));
+        const customer = input("text", "Grahak");
+        const saleLitres = input("number", "Litre");
+        const rate = input("number", "Rate");
+        const cash = el("button", "Nagd");
+        cash.type = "button";
+        let paidCash = false;
+        cash.addEventListener("click", () => {
+          paidCash = !paidCash;
+          cash.textContent = paidCash ? "Nagd hai" : "Nagd";
+        });
+        sale.appendChild(field("Grahak", customer));
+        sale.appendChild(field("Litre", saleLitres));
+        sale.appendChild(field("Rate, agar pata ho", rate));
+        sale.appendChild(cash);
+        const saleBtn = el("button", "Becha likhein");
+        saleBtn.type = "submit";
+        saleBtn.className = "big";
+        sale.appendChild(saleBtn);
+        sale.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          try {
+            await api("aaj", {
+              op: "add_sale",
+              customer: customer.value,
+              litres: Number(saleLitres.value),
+              rate_pkr: rate.value ? Number(rate.value) : "",
+              cash: paidCash,
+            });
+            renderAaj();
+          } catch (err) { status.textContent = err.message; }
+        });
+        root.appendChild(sale);
+        for (const item of data.sales || []) {
+          const line = el("div", item.customer + " · " + item.litres + " L · " + money(item.amount), "cow");
+          const del = el("button", "Hatayein");
+          del.type = "button";
+          del.className = "danger";
+          del.addEventListener("click", () => askDelete("aaj", {
+            op: "delete_sale",
+            date: item.date,
+            customer: item.customer,
+            litres: item.litres,
+          }));
+          root.appendChild(line);
+          root.appendChild(del);
+        }
+      } catch (err) {
+        status.textContent = err.message || "Internet nahi chal raha. Dubara koshish karein.";
+      }
+    }
+
+    async function renderGrahak() {
+      const status = document.getElementById("grahak-status");
+      const root = document.getElementById("grahak-body");
+      status.textContent = "La raha hoon...";
+      root.textContent = "";
+      try {
+        const data = await api("grahak");
+        status.textContent = "";
+        if (!(data.customers || []).length) {
+          root.appendChild(el("p", "Abhi koi grahak nahi.", "hint"));
+        }
+        for (const customer of data.customers || []) {
+          const card = el("div", null, "card");
+          card.appendChild(el("h2", customer.name));
+          card.appendChild(el("p", "Baqi " + money(customer.balance), "tot"));
+          const supply = customer.supply_type === "fixed"
+            ? "Rozana " + customer.daily_litres + " L"
+            : customer.supply_type === "flexible" ? "Flexible" : "Supply nahi";
+          card.appendChild(el("p", supply, "muted"));
+          const pay = el("button", "Wasool");
+          pay.type = "button";
+          pay.className = "big";
+          const amount = input("number", "Raqam");
+          pay.addEventListener("click", async () => {
+            try {
+              await api("grahak", { op: "pay", customer: customer.name, amount: Number(amount.value) });
+              renderGrahak();
+            } catch (err) { status.textContent = err.message; }
+          });
+          card.appendChild(field("Wasool ki raqam", amount));
+          card.appendChild(pay);
+          const litres = input("number", "Rozana litre");
+          litres.value = customer.daily_litres || "";
+          const fixed = el("button", "Rozana supply");
+          fixed.type = "button";
+          fixed.addEventListener("click", async () => {
+            try {
+              await api("grahak", {
+                op: "supply",
+                customer: customer.name,
+                supply_type: "fixed",
+                daily_litres: Number(litres.value),
+              });
+              renderGrahak();
+            } catch (err) { status.textContent = err.message; }
+          });
+          card.appendChild(field("Rozana litre", litres));
+          card.appendChild(fixed);
+          root.appendChild(card);
+        }
+        if ((data.payments || []).length) {
+          const card = el("div", null, "card");
+          card.appendChild(el("h2", "Wasool"));
+          for (const pay of data.payments) {
+            const line = el("div", pay.customer + " · " + money(pay.amount), "cow");
+            const del = el("button", "Hatayein");
+            del.type = "button";
+            del.className = "danger";
+            del.addEventListener("click", () => askDelete("grahak", {
+              op: "delete_payment",
+              date: pay.date,
+              customer: pay.customer,
+              amount: pay.amount,
+            }));
+            card.appendChild(line);
+            card.appendChild(del);
+          }
+          root.appendChild(card);
+        }
+      } catch (err) {
+        status.textContent = err.message || "Internet nahi chal raha. Dubara koshish karein.";
+      }
+    }
+
+    async function renderKhata() {
+      const status = document.getElementById("khata-status");
+      const root = document.getElementById("khata-body");
+      status.textContent = "La raha hoon...";
+      root.textContent = "";
+      try {
+        const data = await api("khata");
+        status.textContent = "";
+        const quick = el("div", null, "card");
+        quick.appendChild(el("h2", "Kharcha"));
+        const amount = input("number", "Raqam");
+        const note = input("text", "Note, agar chahiye");
+        quick.appendChild(field("Raqam", amount));
+        quick.appendChild(field("Note", note));
+        const choice = el("div", null, "choice");
+        for (const item of [["labor", "Mazdoori"], ["salary", "Tankhwah"], ["kharcha", "Aur kharcha"]]) {
+          const button = el("button", item[1]);
+          button.type = "button";
+          button.addEventListener("click", async () => {
+            try {
+              await api("khata", { op: "add", category: item[0], amount: Number(amount.value), note: note.value });
+              renderKhata();
+            } catch (err) { status.textContent = err.message; }
+          });
+          choice.appendChild(button);
+        }
+        quick.appendChild(choice);
+        root.appendChild(quick);
+        for (const row of data.expenses || []) {
+          const card = el("div", null, "card");
+          card.appendChild(el("h2", row.label + " · " + money(row.amount)));
+          card.appendChild(el("p", row.date + (row.note ? " · " + row.note : ""), "muted"));
+          const del = el("button", "Hatayein");
+          del.type = "button";
+          del.className = "danger";
+          del.addEventListener("click", () => askDelete("khata", {
+            op: "delete",
+            date: row.date,
+            category: row.category,
+            amount: row.amount,
+          }));
+          const edit = el("button", "Badlein");
+          edit.type = "button";
+          edit.addEventListener("click", async () => {
+            const next = window.prompt("Nayi raqam?", String(row.amount));
+            if (next == null) return;
+            try {
+              await api("khata", {
+                op: "update",
+                date: row.date,
+                category: row.category,
+                amount: row.amount,
+                new_amount: Number(next),
+              });
+              renderKhata();
+            } catch (err) { status.textContent = err.message; }
+          });
+          const actions = el("div", null, "row-actions");
+          actions.appendChild(edit);
+          actions.appendChild(del);
+          card.appendChild(actions);
+          root.appendChild(card);
+        }
+        const suppliers = el("div", null, "card");
+        suppliers.appendChild(el("h2", "Supplier baqi"));
+        if (!(data.suppliers || []).length) suppliers.appendChild(el("p", "Koi supplier baqi nahi.", "muted"));
+        for (const supplier of data.suppliers || []) {
+          const line = el("div", supplier.name + " · " + money(supplier.balance_owed), "cow");
+          const set = el("button", "Balance badlein");
+          set.type = "button";
+          set.addEventListener("click", async () => {
+            const next = window.prompt("Ab kitna baqi?", String(supplier.balance_owed));
+            if (next == null) return;
+            try {
+              await api("khata", { op: "set_supplier", supplier: supplier.name, balance_owed: Number(next) });
+              renderKhata();
+            } catch (err) { status.textContent = err.message; }
+          });
+          suppliers.appendChild(line);
+          suppliers.appendChild(set);
+        }
+        root.appendChild(suppliers);
+      } catch (err) {
+        status.textContent = err.message || "Internet nahi chal raha. Dubara koshish karein.";
+      }
+    }
+
+    async function renderHisaab(range) {
+      const status = document.getElementById("hisaab-status");
+      const root = document.getElementById("hisaab-body");
+      status.textContent = "La raha hoon...";
+      root.textContent = "";
+      try {
+        const data = await api("hisaab?range=" + (range || "week"));
+        status.textContent = "";
+        const choice = el("div", null, "choice");
+        const week = el("button", "Is hafte");
+        const month = el("button", "Is mahine");
+        week.type = "button";
+        month.type = "button";
+        week.addEventListener("click", () => renderHisaab("week"));
+        month.addEventListener("click", () => renderHisaab("month"));
+        choice.appendChild(week);
+        choice.appendChild(month);
+        root.appendChild(choice);
+        const card = el("div", null, "card");
+        card.appendChild(el("h2", data.range === "month" ? "Is mahine" : "Is hafte"));
+        card.appendChild(el("p", "Doodh " + data.milk_litres + " L", "tot"));
+        card.appendChild(el("p", "Becha " + data.sold_litres + " L · " + money(data.sales_amount), "tot"));
+        card.appendChild(el("p", "Wasool " + money(data.payments), "tot"));
+        card.appendChild(el("p", "Kharcha " + money(data.expenses + data.fodder_cost), "tot"));
+        card.appendChild(el("p", "Grahak baqi " + money(data.customers_due), "tot"));
+        root.appendChild(card);
+      } catch (err) {
+        status.textContent = err.message || "Internet nahi chal raha. Dubara koshish karein.";
+      }
+    }
+
+    const panes = {
+      bolein: document.getElementById("pane-bolein"),
+      aaj: document.getElementById("pane-aaj"),
+      grahak: document.getElementById("pane-grahak"),
+      khata: document.getElementById("pane-khata"),
+      hisaab: document.getElementById("pane-hisaab"),
+    };
+
+    function showTab(name) {
+      const tab = panes[name] ? name : "bolein";
+      for (const key of Object.keys(panes)) panes[key].hidden = key !== tab;
+      for (const button of document.querySelectorAll("nav button")) {
+        button.setAttribute("aria-current", button.dataset.tab === tab ? "page" : "false");
+      }
+      if (location.hash !== "#" + tab) history.replaceState(null, "", "#" + tab);
+      if (tab === "aaj") renderAaj();
+      if (tab === "grahak") renderGrahak();
+      if (tab === "khata") renderKhata();
+      if (tab === "hisaab") renderHisaab("week");
+    }
+
+    for (const button of document.querySelectorAll("nav button")) {
+      button.addEventListener("click", () => showTab(button.dataset.tab));
+    }
+    showTab((location.hash || "#bolein").slice(1));
 
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/recorder/sw.js", { scope: "/r/" }).catch(() => {});

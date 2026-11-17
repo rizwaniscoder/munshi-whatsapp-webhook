@@ -1,6 +1,6 @@
 # Munshi WhatsApp Webhook
 
-WhatsApp bookkeeping assistant for Munshi, operated by Nodeable AI LLC. Farmers send text or voice notes. Munshi parses them with Gemini, confirms before saving, and writes records to the dairy ledger Google Sheet.
+Bookkeeping assistant for Munshi, operated by Nodeable AI LLC. Small dairy farmers open a personal link on Android Chrome, speak or tap, confirm, and the rows land in Supabase Postgres. WhatsApp text and voice still work when Meta delivery is available, but the web app is the primary channel. Google Sheets remains the fallback until `SUPABASE_URL` is set.
 
 ## Endpoints
 
@@ -24,13 +24,16 @@ Set these on the host. Do not commit secrets.
 - `WHATSAPP_GRAPH_VERSION` - default `v25.0`
 - `GEMINI_API_KEY` - Gemini API key
 - `GEMINI_MODEL` - default `gemini-3.5-flash-lite`
+- `REPLY_SCRIPT` - set `roman` so farmer-facing text stays Roman Urdu
 - `ALLOWED_NUMBERS` - comma-separated allowlist; empty means allow all (test phase)
-- `SHEETS_WEBHOOK_URL` - deployed Apps Script web app URL
+- `SUPABASE_URL` - Supabase project URL. When this is set, Postgres replaces Sheets for every read and write.
+- `SUPABASE_SERVICE_ROLE_KEY` - service-role key. Required when `SUPABASE_URL` is set. Server only. Never put it in the browser, a log, or git.
+- `SHEETS_WEBHOOK_URL` - deployed Apps Script web app URL. Used only when `SUPABASE_URL` is unset, and by the one-off import.
 - `SHEETS_SECRET` - shared secret for the Apps Script gateway
-- `CRON_SECRET` - shared secret for `POST /cron/reminders`. Set the same value as the GitHub Actions secret `CRON_SECRET`. Do not commit it.
+- `CRON_SECRET` - shared secret for `POST /cron/reminders` and `POST /admin/recorder-links`. Set the same value as the GitHub Actions secret `CRON_SECRET`. Do not commit it.
 - `TZ` - `Asia/Karachi`
 
-Until `SHEETS_WEBHOOK_URL` is set, pending records are held in memory only and will not survive a free-tier sleep. See `apps-script/README.md` for the one-time Sheet deploy.
+Until `SUPABASE_URL` or `SHEETS_WEBHOOK_URL` is set, pending records are held in memory only and will not survive a free-tier sleep. See below for Supabase, and `apps-script/README.md` for the Sheet fallback.
 
 A GitHub Actions workflow that pings `GET /` every 10 minutes is in `.github/workflows/keepalive.yml`. Scheduled runs can be delayed by GitHub.
 
@@ -38,7 +41,7 @@ Missing-data reminders run from `.github/workflows/reminders.yml` at 10:00 and 1
 
 ## Web recorder
 
-Farmers who cannot use WhatsApp open `https://munshi-whatsapp-webhook.onrender.com/r/<token>` in Android Chrome. The link is personal. A phone number is not enough. The page has one record button, then the same Roman Urdu summary with Haan, Nahi, and Edit. Confirmed rows go through the existing Gemini and Google Sheets path. The page does not send a WhatsApp message. A web visit still updates `last_inbound_at`, so the 10:00 and 19:00 reminders can see a fresh 24-hour window.
+Farmers open `https://munshi-whatsapp-webhook.onrender.com/r/<token>` in Android Chrome. The link is personal. A phone number is not enough. Bolein is the record button, then the same Roman Urdu summary with Haan, Nahi, and Edit. Confirmed rows are stored in Supabase when `SUPABASE_URL` is set, and in Google Sheets otherwise. The page does not send a WhatsApp message. A web visit still updates `last_inbound_at`, so the 10:00 and 19:00 reminders can see a fresh 24-hour window. The other tabs are described under Farmer web app.
 
 `web_token` is a column on the master `Farmers` tab. Apps Script adds it in `migrateMaster_`, not in `extraColumns_` (that map is only for columns on each farm ledger). Paste `apps-script/Code.gs` and deploy a new version of the same web app before minting links. Keep the URL and do not change `SHEETS_SECRET`.
 
@@ -57,6 +60,53 @@ curl -s -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/js
 ```
 
 Allowed farmers with no token get one. Farmers who are not allowed are skipped. Running it again returns the same link. There is no new Render env var. Browser recordings are often `audio/webm`; the server sends `audio/ogg` when `ffmpeg` can remux them, and otherwise sends `audio/webm` through the same Gemini audio path WhatsApp uses.
+
+## Supabase
+
+Apply the SQL files in `supabase/migrations/` in filename order. Do not skip one. They create the farm tables (farmers, cows, milk, customers with `supply_type` of `fixed` or `flexible`, sales, payments, expenses, fodder and supplier balances, committee, vet and breeding events, feed stock, billing rows, reminders) and turn on row level security with no policies. The service role bypasses that lock; the anon key cannot read the tables. This repo does not apply the migrations itself.
+
+1. `supabase/migrations/20261117120000_munshi_tables.sql`
+2. `supabase/migrations/20261117120100_munshi_snapshot.sql`
+
+Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` on the existing Render web service, keep `REPLY_SCRIPT=roman`, and redeploy. `GET /` still returns `ok`. If `SUPABASE_URL` is unset, the process keeps using Apps Script so the current deployment does not break. When both are set, Postgres wins.
+
+Copy the current master ledger and each farm ledger once, from a machine that has the secrets in its environment and not in the shell history you commit:
+
+```bash
+SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
+SHEETS_WEBHOOK_URL=... SHEETS_SECRET=... \
+node scripts/import-from-sheets.js
+```
+
+`SHEETS_URL` is accepted as an alias of `SHEETS_WEBHOOK_URL`. The script prints row counts only. Run it again and it updates the same rows; it does not delete rows that were removed from the sheet, and it does not remove rows the web app added later. The gateway does not export the pending-confirmation queue or the reminder log, so finish or cancel open confirms before the cutover. Reminder claims start empty in Postgres.
+
+Mint links after the farmers are in Postgres. Existing `web_token` values are copied by the import, so farmers keep the same `/r/<token>` link.
+
+```bash
+node scripts/mint-recorder-links.js --remote
+```
+
+`CRON_SECRET` must be set. Or:
+
+```bash
+curl -s -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json" \
+  -d '{"phones":["923155506704"]}' \
+  https://munshi-whatsapp-webhook.onrender.com/admin/recorder-links
+```
+
+The output contains secrets. Do not commit it or paste it into chat.
+
+## Farmer web app
+
+`GET /r/<token>` is the installable page for one allowed farmer. Android Chrome is the target. Add it to the Home screen from the Chrome menu. The page is Roman Urdu, with large buttons and five tabs:
+
+- **Bolein** records a voice note or a typed line, then Haan / Nahi / Edit. Gemini parses the voice note. A confirmed entry is stored and shows up on the other tabs. The page does not send a WhatsApp message.
+- **Aaj** shows today's milk per cow and sold / unsold litres, and can add, edit, or delete those rows. Delete asks for confirmation.
+- **Grahak** lists customers, the balance they owe, and standing supply. Tap to record a payment.
+- **Khata** records expenses, including mazdoori and tankhwah, and shows supplier balances.
+- **Hisaab** shows this week and this month.
+
+Unknown tokens get a generic failure. A visit still updates `last_inbound_at`, so the 10:00 and 19:00 PKT reminders can see a fresh 24-hour window. Those reminder routes stay behind `CRON_SECRET`.
 
 ## Multi-tenant ledgers
 
