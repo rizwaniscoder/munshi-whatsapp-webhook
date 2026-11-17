@@ -165,6 +165,97 @@ async function main() {
     false
   );
 
+  const seen = [];
+  const oldGateway = {
+    async listRecorderFarmers() {
+      seen.push("listRecorderFarmers");
+      throw new Error("Sheets gateway returned non-JSON (HTTP 500)");
+    },
+    async listFarmers() {
+      seen.push("listFarmers");
+      return {
+        ok: true,
+        farmers: [{
+          phone: "923100000222",
+          sheetId: "sheet-old",
+          name: "Raza",
+          farmName: "Old Farm",
+          onboardingState: "complete",
+          allowed: true,
+          createdAt: "2026-11-01",
+        }],
+      };
+    },
+    async readRecent(args) {
+      seen.push("readRecent");
+      assert.strictEqual(args.sender, "923100000222");
+      assert.strictEqual(args.phone, "923100000222");
+      assert.strictEqual(args.sheetId, "sheet-old");
+      assert.strictEqual(args.refresh, false);
+      assert.strictEqual(args.days, 4000);
+      assert.strictEqual(args.webToken, undefined);
+      return {
+        ok: true,
+        cows: [["cow_id", "name", "type", "status"], ["C-1", "Gori", "cow", "milking"]],
+        milk: [["date", "session", "cow_name", "litres", "source_note"], ["2026-11-01", "am", "Gori", 8, "old"]],
+        customers: [["name", "phone", "rate_pkr", "opening_balance", "current_balance", "notes"]],
+        expenses: [["date", "category", "amount", "note"], ["2026-11-01", "labor", 100, ""]],
+      };
+    },
+  };
+  const oldDb = memoryDb();
+  const oldImport = await importFromGateway({ gateway: oldGateway, client: oldDb });
+  assert.deepStrictEqual(seen, ["listRecorderFarmers", "listFarmers", "readRecent"]);
+  assert.strictEqual(oldImport.counts.farmers, 1);
+  assert.strictEqual(oldImport.counts.milk_records, 1);
+  assert.strictEqual([...oldDb.tables.milk_records.values()][0].litres, 8);
+  assert.strictEqual([...oldDb.tables.farmers.values()][0].web_token, undefined);
+
+  resetSheetsImportGuard();
+  const quiet = {
+    async listRecorderFarmers() {
+      return { ok: false, error: "Exception: action missing" };
+    },
+    async listFarmers() {
+      return { ok: true, farmers: [] };
+    },
+  };
+  const quietLogs = [];
+  const quietResult = await startSheetsImportOnBoot({
+    env: bootEnv(),
+    gateway: quiet,
+    client: memoryDb(),
+    log: (line) => quietLogs.push(line),
+    logError: (line) => quietLogs.push(line),
+  });
+  assert.strictEqual(quietResult.ok, true);
+
+  resetSheetsImportGuard();
+  const brokenLogs = [];
+  const broken = await startSheetsImportOnBoot({
+    env,
+    gateway: {
+      async listRecorderFarmers() {
+        throw new Error("unknown action " + env.SHEETS_SECRET);
+      },
+      async listFarmers() {
+        throw new Error("unauthorized " + env.SHEETS_WEBHOOK_URL);
+      },
+    },
+    client: memoryDb(),
+    log: (line) => brokenLogs.push(line),
+    logError: (line) => brokenLogs.push(line),
+  });
+  assert.strictEqual(broken.ok, false);
+  const brokenLine = brokenLogs.join("\n");
+  assert.ok(brokenLine.startsWith("IMPORT_FROM_SHEETS failed: listFarmers:"));
+  assert.ok(brokenLine.includes("unauthorized"));
+  assert.ok(brokenLine.includes("listRecorderFarmers:"));
+  assert.ok(brokenLine.includes("unknown action"));
+  assert.ok(!brokenLine.includes(env.SHEETS_SECRET));
+  assert.ok(!brokenLine.includes(env.SHEETS_WEBHOOK_URL));
+  assert.ok(!brokenLine.includes("script.google.com"));
+
   console.log("test-import-boot ok");
 }
 
