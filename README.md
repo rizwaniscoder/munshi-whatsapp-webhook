@@ -28,8 +28,9 @@ Set these on the host. Do not commit secrets.
 - `ALLOWED_NUMBERS` - comma-separated allowlist; empty means allow all (test phase)
 - `SUPABASE_URL` - Supabase project URL. When this is set, Postgres replaces Sheets for every read and write.
 - `SUPABASE_SERVICE_ROLE_KEY` - service-role key. Required when `SUPABASE_URL` is set. Server only. Never put it in the browser, a log, or git.
-- `SHEETS_WEBHOOK_URL` - deployed Apps Script web app URL. Used only when `SUPABASE_URL` is unset, and by the one-off import.
+- `SHEETS_WEBHOOK_URL` - deployed Apps Script web app URL. Used when `SUPABASE_URL` is unset, and by the one-shot sheet import. `SHEETS_URL` is an alias.
 - `SHEETS_SECRET` - shared secret for the Apps Script gateway
+- `IMPORT_FROM_SHEETS_ON_BOOT` - set to `1` on Render to copy Sheets into Postgres once after the process starts listening. Leave it unset after that copy has succeeded.
 - `CRON_SECRET` - shared secret for `POST /cron/reminders` and `POST /admin/recorder-links`. Set the same value as the GitHub Actions secret `CRON_SECRET`. Do not commit it.
 - `TZ` - `Asia/Karachi`
 
@@ -70,15 +71,15 @@ Apply the SQL files in `supabase/migrations/` in filename order. Do not skip one
 
 Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` on the existing Render web service, keep `REPLY_SCRIPT=roman`, and redeploy. `GET /` still returns `ok`. If `SUPABASE_URL` is unset, the process keeps using Apps Script so the current deployment does not break. When both are set, Postgres wins.
 
-Copy the current master ledger and each farm ledger once, from a machine that has the secrets in its environment and not in the shell history you commit:
+The Sheets and cron secrets live on Render. Copy the ledgers from there: set `IMPORT_FROM_SHEETS_ON_BOOT=1` together with `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SHEETS_WEBHOOK_URL`, and `SHEETS_SECRET`, then deploy. After the process is listening, it runs the import once in the background. `GET /` does not wait for it. The log has one line of row counts per table and then `IMPORT_FROM_SHEETS done`, or `IMPORT_FROM_SHEETS failed:` plus a short message that does not include secrets. A second start in the same process does not run a second import. Unset `IMPORT_FROM_SHEETS_ON_BOOT` after a successful copy so the next restart does not repeat it.
+
+The same work can be run by hand where those variables are already set:
 
 ```bash
-SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
-SHEETS_WEBHOOK_URL=... SHEETS_SECRET=... \
 node scripts/import-from-sheets.js
 ```
 
-`SHEETS_URL` is accepted as an alias of `SHEETS_WEBHOOK_URL`. The script prints row counts only. Run it again and it updates the same rows; it does not delete rows that were removed from the sheet, and it does not remove rows the web app added later. The gateway does not export the pending-confirmation queue or the reminder log, so finish or cancel open confirms before the cutover. Reminder claims start empty in Postgres.
+`SHEETS_URL` is accepted as an alias of `SHEETS_WEBHOOK_URL`. Running it again updates the same rows; it does not delete rows that were removed from the sheet, and it does not remove rows the web app added later. The gateway does not export the pending-confirmation queue or the reminder log, so finish or cancel open confirms before the cutover. Reminder claims start empty in Postgres.
 
 Mint links after the farmers are in Postgres. Existing `web_token` values are copied by the import, so farmers keep the same `/r/<token>` link.
 

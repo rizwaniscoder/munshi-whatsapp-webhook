@@ -5,6 +5,7 @@ const { processPayload } = require("./lib/bot");
 const { authorizedCron, cronConfigured } = require("./lib/cron-auth");
 const { runReminderJob } = require("./lib/reminder-job");
 const { mountRecorder } = require("./lib/recorder-routes");
+const { startSheetsImportOnBoot } = require("./lib/import-from-sheets");
 
 const app = express();
 app.use(express.json({ limit: "2mb" }));
@@ -92,6 +93,11 @@ const port = process.env.PORT || 10000;
 if (require.main === module) {
   app.listen(port, "0.0.0.0", () => {
     console.log(`munshi webhook listening on ${port}`);
+    setImmediate(() => {
+      startSheetsImportOnBoot().catch(() => {
+        console.error("IMPORT_FROM_SHEETS failed: import failed");
+      });
+    });
   });
 }
 
