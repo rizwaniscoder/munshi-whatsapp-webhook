@@ -3,6 +3,7 @@ const path = require("path");
 
 const files = [
   "scripts/test-format.js",
+  "scripts/test-sale-entry.js",
   "scripts/test-stage1-onboarding.js",
   "scripts/test-stage2.js",
   "scripts/test-supply.js",

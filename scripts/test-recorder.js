@@ -156,9 +156,12 @@ async function main() {
   const again = await handleRecorderTurn(sheets, { token: a.token, text: "aaj 500 mazdoori" });
   assert.strictEqual(again.replies[0].kind, "confirm");
   const editing = await handleRecorderTurn(sheets, { token: a.token, action: "confirm_edit" });
-  assert.ok(/tabdeeli/i.test(editing.replies.map((r) => r.text).join("\n")));
+  const editText = editing.replies.map((r) => r.text).join("\n");
+  assert.ok(!/kya tabdeeli/i.test(editText), editText);
+  assert.ok(editing.replies.some((r) => r.kind === "edit" && r.entries.length), editText);
+  assert.ok(/save|record/i.test(editText), editText);
   assert.strictEqual(expenseRows(sheets, a.sheetId).length, 0);
-  assert.strictEqual((await sheets.getPending(PHONE_A)).pending.status, "editing");
+  assert.notStrictEqual((await sheets.getPending(PHONE_A)).pending.status, "editing");
 
   await sheets.clearPending(PHONE_A, "cancelled");
   await handleRecorderTurn(sheets, { token: a.token, text: "aaj 500 mazdoori" });
@@ -246,6 +249,8 @@ async function main() {
   assert.ok(page.body.includes("Haan"));
   assert.ok(page.body.includes("Nahi"));
   assert.ok(page.body.includes("Edit"));
+  assert.ok(page.body.includes("Maine yeh suna:"));
+  assert.ok(page.body.includes("Dobara record karein"));
   assert.ok(page.body.includes("Al Noor Dairy"));
   assert.ok(page.body.includes("/recorder/sw.js"));
 

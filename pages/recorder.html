@@ -65,6 +65,8 @@
     }
     #reply:empty { display: none; }
     #reply img { display: block; max-width: 100%; margin-top: 12px; border-radius: 0.6rem; }
+    .heard { margin: 0 0 10px; font-weight: 700; }
+    #edit-box:empty { display: none; }
     #actions, .row-actions, .choice { display: flex; gap: 8px; }
     .choice, .row-actions { flex-wrap: wrap; }
     #actions { display: none; margin-top: 12px; }
@@ -162,6 +164,7 @@
       <p id="status" class="status" role="status"></p>
       <div id="reply" role="status"></div>
       <div id="actions"></div>
+      <div id="edit-box"></div>
       <form id="text-form" class="line">
         <input id="text" type="text" name="text" maxlength="2000" autocomplete="off" placeholder="Yahan likh kar bhejein">
         <button type="submit">Bhejein</button>
@@ -218,6 +221,7 @@
     let stopTimer = 0;
     let busy = false;
     let pendingDelete = null;
+    let lastEntries = [];
 
     const ACTION_LABELS = { confirm_yes: "Haan", confirm_no: "Nahi", confirm_edit: "Edit" };
 
@@ -235,15 +239,113 @@
       recordBtn.disabled = on && recordBtn.dataset.state !== "recording";
       form.querySelector("button").disabled = on;
       for (const button of actionsEl.querySelectorAll("button")) button.disabled = on;
+      const editBox = document.getElementById("edit-box");
+      if (editBox) for (const button of editBox.querySelectorAll("button")) button.disabled = on;
+    }
+
+    function clearEditBox() {
+      const editBox = document.getElementById("edit-box");
+      if (editBox) editBox.textContent = "";
+    }
+
+    function showEditForm(entries) {
+      const box = document.getElementById("edit-box");
+      if (!box) return;
+      box.textContent = "";
+      const formEl = document.createElement("form");
+      formEl.className = "card";
+      formEl.appendChild(el("h2", "Badlein"));
+      const rows = [];
+      (entries || []).forEach((entry, index) => {
+        const block = el("div", null, "stack");
+        const title = entry.type === "milk" ? "Doodh" : entry.type === "sale" ? "Sale" : entry.type === "expense" ? "Kharcha" : "Entry";
+        block.appendChild(el("strong", title));
+        const fields = { index, type: entry.type };
+        if (entry.type === "milk") {
+          fields.cow_name = input("text", "Gay");
+          fields.cow_name.value = entry.cow_name || "";
+          block.appendChild(field("Gay", fields.cow_name));
+        }
+        if (entry.type === "sale") {
+          fields.customer = input("text", "Grahak");
+          fields.customer.value = entry.customer || "";
+          block.appendChild(field("Grahak", fields.customer));
+        }
+        if (entry.type === "milk" || entry.type === "sale") {
+          fields.litres = input("number", "Litre");
+          fields.litres.value = entry.litres == null ? "" : String(entry.litres);
+          block.appendChild(field("Litre", fields.litres));
+          fields.session = document.createElement("select");
+          fields.session.appendChild(new Option("Subah", "am"));
+          fields.session.appendChild(new Option("Shaam", "pm"));
+          const session = String(entry.session || "").toLowerCase();
+          fields.session.value = session === "pm" || session === "shaam" ? "pm" : "am";
+          block.appendChild(field("Subah / Shaam", fields.session));
+        }
+        if (entry.type === "sale") {
+          fields.rate_pkr = input("number", "Rate");
+          fields.rate_pkr.value = entry.rate_pkr == null || entry.rate_pkr === "" ? "" : String(entry.rate_pkr);
+          block.appendChild(field("Rate", fields.rate_pkr));
+          fields.pay = document.createElement("select");
+          fields.pay.appendChild(new Option("Udhaar", "udhaar"));
+          fields.pay.appendChild(new Option("Nagd", "nagd"));
+          const cash = Number(entry.cash_received) || 0;
+          const balance = Number(entry.balance_added) || 0;
+          fields.pay.value = cash > 0 && !(balance > 0) ? "nagd" : "udhaar";
+          block.appendChild(field("Nagd / Udhaar", fields.pay));
+        }
+        if (entry.type === "expense" || entry.type === "payment") {
+          fields.amount = input("number", "Raqam");
+          fields.amount.value = entry.amount == null ? "" : String(entry.amount);
+          block.appendChild(field("Raqam", fields.amount));
+        }
+        formEl.appendChild(block);
+        rows.push(fields);
+      });
+      const save = el("button", "Save");
+      save.type = "submit";
+      save.className = "big";
+      const again = el("button", "Dobara record karein");
+      again.type = "button";
+      again.addEventListener("click", () => {
+        if (busy) return;
+        startRecording();
+      });
+      formEl.appendChild(save);
+      formEl.appendChild(again);
+      formEl.addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (busy) return;
+        const patches = rows.map((fields) => {
+          const patch = { index: fields.index, type: fields.type };
+          if (fields.cow_name) patch.cow_name = fields.cow_name.value;
+          if (fields.customer) patch.customer = fields.customer.value;
+          if (fields.litres) patch.litres = fields.litres.value;
+          if (fields.rate_pkr) patch.rate_pkr = fields.rate_pkr.value;
+          if (fields.session) patch.session = fields.session.value;
+          if (fields.pay) patch.pay = fields.pay.value;
+          if (fields.amount) patch.amount = fields.amount.value;
+          return patch;
+        });
+        sendTurn({ action: "save_edit", entries: patches }, false);
+      });
+      box.appendChild(formEl);
     }
 
     function showReplies(replies) {
       replyEl.textContent = "";
       actionsEl.innerHTML = "";
       actionsEl.style.display = "none";
+      clearEditBox();
       const parts = [];
       let actions = [];
+      let transcript = "";
+      let entries = [];
+      let openEdit = false;
       for (const reply of replies || []) {
+        if (reply.transcript) transcript = String(reply.transcript);
+        if (Array.isArray(reply.entries) && reply.entries.length) entries = reply.entries;
+        if (reply.kind === "edit") openEdit = true;
         if (reply.text) parts.push(reply.text);
         if (reply.dataUrl) {
           const img = document.createElement("img");
@@ -253,20 +355,37 @@
         }
         if (reply.actions && reply.actions.length) actions = reply.actions;
       }
-      if (parts.length) replyEl.insertBefore(document.createTextNode(parts.join("\n\n")), replyEl.firstChild);
-      if (!actions.length) return;
-      actionsEl.style.display = "flex";
-      for (const action of actions) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.dataset.action = action.id;
-        button.textContent = ACTION_LABELS[action.id] || action.label || action.id;
-        button.addEventListener("click", () => {
-          if (busy) return;
-          sendTurn({ action: action.id });
-        });
-        actionsEl.appendChild(button);
+      lastEntries = entries;
+      if (transcript) {
+        const heard = document.createElement("p");
+        heard.className = "heard";
+        heard.textContent = "Maine yeh suna: " + transcript;
+        replyEl.appendChild(heard);
       }
+      if (parts.length) {
+        const body = document.createElement("div");
+        body.textContent = parts.join("\n\n");
+        replyEl.appendChild(body);
+      }
+      if (actions.length) {
+        actionsEl.style.display = "flex";
+        for (const action of actions) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.dataset.action = action.id;
+          button.textContent = ACTION_LABELS[action.id] || action.label || action.id;
+          button.addEventListener("click", () => {
+            if (busy) return;
+            if (action.id === "confirm_edit" && lastEntries.length) {
+              showEditForm(lastEntries);
+              return;
+            }
+            sendTurn({ action: action.id });
+          });
+          actionsEl.appendChild(button);
+        }
+      }
+      if (openEdit) showEditForm(entries);
     }
 
     async function sendTurn(payload, isAudio) {

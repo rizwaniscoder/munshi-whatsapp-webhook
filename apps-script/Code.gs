@@ -1241,22 +1241,32 @@ function getContext_(ss) {
     });
   }
   var customerSupply = [];
+  var customerRoster = [];
   var supplyCol = headerIndex_(custRows[0] || [], "supply_type");
   var litreCol = headerIndex_(custRows[0] || [], "daily_litres");
   var noteCol = headerIndex_(custRows[0] || [], "notes");
+  var rateCol = headerIndex_(custRows[0] || [], "rate_pkr");
   for (var s = 1; s < custRows.length; s++) {
     if (!custRows[s][0]) continue;
     var supplyType = supplyCol === -1 ? "" : String(custRows[s][supplyCol] || "").toLowerCase();
     var supplyLitres = litreCol === -1 ? "" : custRows[s][litreCol];
     var supplyNotes = noteCol === -1 ? "" : String(custRows[s][noteCol] || "");
+    var rateNum = rateCol === -1 ? 0 : parseAmount_(custRows[s][rateCol]);
+    var rosterLine = String(custRows[s][0]);
+    if (rateNum > 0) rosterLine += " @ Rs " + rateNum + "/L";
+    var supplyBit = "";
     if (supplyType === "fixed" && supplyLitres !== "" && supplyLitres != null) {
-      customerSupply.push(String(custRows[s][0]) + " fixed " + supplyLitres + " L/day");
+      supplyBit = "fixed " + supplyLitres + " L/day";
+      customerSupply.push(String(custRows[s][0]) + " " + supplyBit);
     } else if (supplyType === "flexible") {
       var typical = supplyNotes.match(/typical\s+[\d.]+\s*L\/day/i);
-      customerSupply.push(String(custRows[s][0]) + " flexible" + (typical ? " " + typical[0] : ""));
+      supplyBit = "flexible" + (typical ? " " + typical[0] : "");
+      customerSupply.push(String(custRows[s][0]) + " " + supplyBit);
     }
+    if (supplyBit) rosterLine += ", " + supplyBit;
+    customerRoster.push(rosterLine);
   }
-  return { ok: true, cows: cows, customers: customers, committees: committees, customer_supply: customerSupply };
+  return { ok: true, cows: cows, customers: customers, committees: committees, customer_supply: customerSupply, customer_roster: customerRoster };
 }
 
 function isProcessed_(messageId) {
