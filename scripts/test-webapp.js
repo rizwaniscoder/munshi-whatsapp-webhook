@@ -96,7 +96,19 @@ async function main() {
   assert.deepStrictEqual(migrations, [
     "20261117120000_munshi_tables.sql",
     "20261117120100_munshi_snapshot.sql",
+    "20261119000000_fix_snapshot_delete_where.sql",
   ]);
+  const snapshotFix = fs.readFileSync(path.join(__dirname, "../supabase/migrations/20261119000000_fix_snapshot_delete_where.sql"), "utf8");
+  assert.ok(/create or replace function public\.save_ledger_snapshot\(snapshot jsonb, expected_version bigint\)/i.test(snapshotFix));
+  assert.ok(/language plpgsql/i.test(snapshotFix));
+  assert.ok(/security invoker/i.test(snapshotFix));
+  assert.ok(/set search_path = public/i.test(snapshotFix));
+  assert.ok(/revoke all on function public\.save_ledger_snapshot\(jsonb, bigint\) from public/i.test(snapshotFix));
+  assert.ok(/grant execute on function public\.%s to service_role/i.test(snapshotFix));
+  const bareDeletes = snapshotFix.match(/delete\s+from\s+public\.\w+\s*;/gi) || [];
+  assert.deepStrictEqual(bareDeletes, []);
+  const safeDeletes = snapshotFix.match(/delete\s+from\s+public\.\w+\s+where\s+true\s*;/gi) || [];
+  assert.strictEqual(safeDeletes.length, 20);
   const sql = migrations.map((name) => fs.readFileSync(path.join(__dirname, "../supabase/migrations", name), "utf8")).join("\n");
   assert.ok(!/create policy/i.test(sql), "tables stay closed: no public policies");
   for (const table of [
@@ -304,6 +316,14 @@ async function main() {
   assert.ok(page.body.includes("Khata"));
   assert.ok(page.body.includes("Hisaab"));
   assert.ok(page.body.includes("Ali Dairy"));
+  const doodhForm = page.body.indexOf('el("h2", "Doodh likhein")');
+  const cowList = page.body.indexOf("for (const cow of data.cows || [])");
+  assert.ok(doodhForm > 0 && cowList > doodhForm, "Aaj entry form sits above the cow list");
+  assert.ok(/cash\.className = "secondary"/.test(page.body), "Nagd uses the secondary button style");
+  assert.ok(/fixed\.className = "big"/.test(page.body), "Rozana supply uses the green button style");
+  assert.ok(/set\.className = "secondary"/.test(page.body), "Balance badlein uses the secondary button style");
+  assert.ok(page.body.includes("entries ki raqam nahi"));
+  assert.ok(!/entries ki raqam nahi[\s\S]{0,40}[\u{1F300}-\u{1FAFF}]/u.test(page.body));
 
   takeOutbound();
   const draft = await jsonRequest(server, "POST", `/r/${a.token}/turn`, { text: "aaj 500 mazdoori" });
@@ -425,6 +445,64 @@ async function main() {
   });
   assert.strictEqual(gone.status, 200, gone.body);
   assert.strictEqual(gone.json.customers.find((row) => row.name === "Aslam").balance, 400);
+
+  await sheets.withLedger({ sender: PHONE_A, sheetId: a.sheetId }, (store) => {
+    const blankRow = (header, fields) => {
+      const row = header.map(() => "");
+      for (const [key, value] of Object.entries(fields)) {
+        const index = col([header], key);
+        if (index >= 0) row[index] = value;
+      }
+      return row;
+    };
+    const salesHeader = store.Sales[0];
+    store.Customers.push(blankRow(store.Customers[0], { name: "Hotel", rate_pkr: 200 }));
+    store.Sales.push(
+      blankRow(salesHeader, { date: today, customer: "Aslam", litres: 3, rate_pkr: "", amount: null }),
+      blankRow(salesHeader, { date: today, customer: "Aslam", litres: 1, rate_pkr: 180, amount: "" }),
+      blankRow(salesHeader, { date: today, customer: "Bina", litres: 5, rate_pkr: "", amount: "" }),
+      blankRow(salesHeader, { date: today, customer: "Aslam", litres: 10, rate_pkr: 200, amount: 100 }),
+      blankRow(salesHeader, { date: today, customer: "Aslam", litres: 2, rate_pkr: 200, amount: 0 }),
+      blankRow(salesHeader, { date: today, customer: "Hotel", litres: 100, rate_pkr: 150, amount: null }),
+      blankRow(salesHeader, { date: "2020-01-01", customer: "Aslam", litres: 9, rate_pkr: "", amount: "" })
+    );
+    if (col([store.Fodder[0]], "amount") < 0) store.Fodder[0].push("amount");
+    const fodderHeader = store.Fodder[0];
+    const opening = (balance) => blankRow(fodderHeader, {
+      date: today,
+      item: "",
+      quantity: null,
+      unit: "",
+      cost_pkr: null,
+      supplier: "Noman",
+      cash_paid: null,
+      balance_owed: balance,
+    });
+    store.Fodder.push(
+      blankRow(fodderHeader, { date: today, item: "wanda", quantity: 10, unit: "kg", cost_pkr: 800, supplier: "Raza", cash_paid: 300, balance_owed: 500 }),
+      blankRow(fodderHeader, { date: today, item: "chara", quantity: 4, unit: "kg", cost_pkr: null, supplier: "Raza", cash_paid: 200, balance_owed: 500 }),
+      blankRow(fodderHeader, { date: today, item: "toori", quantity: 2, unit: "mann", cost_pkr: null, supplier: "Raza", cash_paid: null, balance_owed: 5000 }),
+      opening(47500),
+      opening(232600),
+      opening(25700),
+      blankRow(fodderHeader, { date: today, item: "hisab", quantity: "", unit: "", cost_pkr: 0, supplier: "Raza", cash_paid: "", balance_owed: 120 }),
+      blankRow(fodderHeader, { date: today, item: "khal", quantity: "", cost_pkr: "", supplier: "Kamal", cash_paid: "", balance_owed: "", amount: 450 }),
+      blankRow(fodderHeader, { date: today, item: "silage", quantity: 3, unit: "kg", cost_pkr: "", supplier: "Kamal", cash_paid: "", balance_owed: 450, amount: 450 }),
+      blankRow(fodderHeader, { date: today, item: "wanda", quantity: 1, unit: "kg", cost_pkr: 800, supplier: "Kamal", amount: 800, balance_owed: 800 }),
+      blankRow(fodderHeader, { date: "2020-01-01", item: "wanda", quantity: 9, cost_pkr: 9999, supplier: "Raza", balance_owed: 9999 })
+    );
+    return { ok: true };
+  });
+  const priced = await jsonRequest(server, "GET", `/r/${a.token}/api/hisaab?range=week`);
+  assert.strictEqual(priced.status, 200, priced.body);
+  assert.strictEqual(priced.json.sold_litres, 123);
+  assert.strictEqual(priced.json.sales_amount, 16280);
+  assert.strictEqual(priced.json.sales_amount_missing, 1);
+  assert.strictEqual(priced.json.fodder_cost, 7750);
+  const khataBalances = await jsonRequest(server, "GET", `/r/${a.token}/api/khata`);
+  const noman = khataBalances.json.suppliers.find((row) => row.name === "Noman");
+  assert.ok(noman, "opening supplier balance still listed in khata");
+  assert.strictEqual(noman.balance_owed, 305800);
 
   server.close();
   console.log("test-webapp ok");

@@ -66,8 +66,9 @@
     #reply:empty { display: none; }
     #reply img { display: block; max-width: 100%; margin-top: 12px; border-radius: 0.6rem; }
     #actions, .row-actions, .choice { display: flex; gap: 8px; }
+    .choice, .row-actions { flex-wrap: wrap; }
     #actions { display: none; margin-top: 12px; }
-    #actions button, .big, .choice button, .row-actions button {
+    #actions button, .big, .choice button, .row-actions button, button.secondary {
       min-height: 3.6rem;
       border-radius: 0.9rem;
       border: 2px solid var(--green-dark);
@@ -75,9 +76,11 @@
       color: var(--green-dark);
       font-size: 1.2rem;
       font-weight: 700;
+      padding: 0 14px;
     }
-    #actions button { flex: 1; }
+    #actions button, .row-actions button, .choice button { flex: 1 1 8rem; }
     #actions button[data-action="confirm_yes"] { background: var(--green); color: white; }
+    button.secondary[aria-pressed="true"] { background: var(--green); color: white; }
     form.line, .stack { display: flex; gap: 8px; margin-top: 14px; }
     .stack { flex-direction: column; }
     input[type="text"], input[type="number"], select {
@@ -89,15 +92,18 @@
       font-size: 1.15rem;
       background: white;
     }
-    form.line button, .big {
+    form.line button, .big, button.secondary {
       min-height: 3.6rem;
-      border: 0;
       border-radius: 0.9rem;
-      background: var(--green-dark);
-      color: white;
       font-weight: 700;
     }
-    form.line button { min-width: 6.5rem; }
+    form.line button, .big {
+      border: 0;
+      background: var(--green-dark);
+      color: white;
+    }
+    .big, button.secondary { width: 100%; }
+    form.line button { min-width: 6.5rem; width: auto; }
     .card {
       background: var(--card);
       border: 1px solid var(--line);
@@ -432,45 +438,6 @@
         card.appendChild(el("p", "Doodh " + data.milk_litres + " L", "tot"));
         card.appendChild(el("p", "Becha " + data.sold_litres + " L", "tot"));
         card.appendChild(el("p", "Bacha " + data.unsold_litres + " L", "tot"));
-        for (const cow of data.cows || []) {
-          const line = el("div", null, "cow");
-          line.appendChild(el("strong", cow.name));
-          line.appendChild(el("span", "Subah " + cow.subah + " · Shaam " + cow.shaam));
-          card.appendChild(line);
-          for (const row of cow.rows || []) {
-            const actions = el("div", null, "row-actions");
-            const edit = el("button", "Badlein");
-            edit.type = "button";
-            edit.addEventListener("click", async () => {
-              const next = window.prompt("Naye litre?", String(row.litres));
-              if (next == null) return;
-              try {
-                await api("aaj", {
-                  op: "update",
-                  date: row.date,
-                  session: row.session,
-                  cow_name: row.cow_name,
-                  litres: row.litres,
-                  new_litres: Number(next),
-                });
-                renderAaj();
-              } catch (err) { status.textContent = err.message; }
-            });
-            const del = el("button", "Hatayein");
-            del.type = "button";
-            del.className = "danger";
-            del.addEventListener("click", () => askDelete("aaj", {
-              op: "delete",
-              date: row.date,
-              session: row.session,
-              cow_name: row.cow_name,
-              litres: row.litres,
-            }));
-            actions.appendChild(edit);
-            actions.appendChild(del);
-            card.appendChild(actions);
-          }
-        }
         root.appendChild(card);
 
         const formCard = el("form", null, "card");
@@ -503,10 +470,13 @@
         const rate = input("number", "Rate");
         const cash = el("button", "Nagd");
         cash.type = "button";
+        cash.className = "secondary";
+        cash.setAttribute("aria-pressed", "false");
         let paidCash = false;
         cash.addEventListener("click", () => {
           paidCash = !paidCash;
           cash.textContent = paidCash ? "Nagd hai" : "Nagd";
+          cash.setAttribute("aria-pressed", paidCash ? "true" : "false");
         });
         sale.appendChild(field("Grahak", customer));
         sale.appendChild(field("Litre", saleLitres));
@@ -530,19 +500,64 @@
           } catch (err) { status.textContent = err.message; }
         });
         root.appendChild(sale);
+        const cows = el("div", null, "card");
+        cows.appendChild(el("h2", "Gayein"));
+        if (!(data.cows || []).length) cows.appendChild(el("p", "Abhi koi doodh nahi.", "muted"));
+        for (const cow of data.cows || []) {
+          const line = el("div", null, "cow");
+          line.appendChild(el("strong", cow.name));
+          line.appendChild(el("span", "Subah " + cow.subah + " · Shaam " + cow.shaam));
+          cows.appendChild(line);
+          for (const row of cow.rows || []) {
+            const actions = el("div", null, "row-actions");
+            const edit = el("button", "Badlein");
+            edit.type = "button";
+            edit.addEventListener("click", async () => {
+              const next = window.prompt("Naye litre?", String(row.litres));
+              if (next == null) return;
+              try {
+                await api("aaj", {
+                  op: "update",
+                  date: row.date,
+                  session: row.session,
+                  cow_name: row.cow_name,
+                  litres: row.litres,
+                  new_litres: Number(next),
+                });
+                renderAaj();
+              } catch (err) { status.textContent = err.message; }
+            });
+            const del = el("button", "Hatayein");
+            del.type = "button";
+            del.className = "danger";
+            del.addEventListener("click", () => askDelete("aaj", {
+              op: "delete",
+              date: row.date,
+              session: row.session,
+              cow_name: row.cow_name,
+              litres: row.litres,
+            }));
+            actions.appendChild(edit);
+            actions.appendChild(del);
+            cows.appendChild(actions);
+          }
+        }
+        root.appendChild(cows);
         for (const item of data.sales || []) {
           const line = el("div", item.customer + " · " + item.litres + " L · " + money(item.amount), "cow");
           const del = el("button", "Hatayein");
           del.type = "button";
           del.className = "danger";
+          const actions = el("div", null, "row-actions");
           del.addEventListener("click", () => askDelete("aaj", {
             op: "delete_sale",
             date: item.date,
             customer: item.customer,
             litres: item.litres,
           }));
+          actions.appendChild(del);
           root.appendChild(line);
-          root.appendChild(del);
+          root.appendChild(actions);
         }
       } catch (err) {
         status.textContent = err.message || "Internet nahi chal raha. Dubara koshish karein.";
@@ -584,6 +599,7 @@
           litres.value = customer.daily_litres || "";
           const fixed = el("button", "Rozana supply");
           fixed.type = "button";
+          fixed.className = "big";
           fixed.addEventListener("click", async () => {
             try {
               await api("grahak", {
@@ -607,14 +623,16 @@
             const del = el("button", "Hatayein");
             del.type = "button";
             del.className = "danger";
+            const actions = el("div", null, "row-actions");
             del.addEventListener("click", () => askDelete("grahak", {
               op: "delete_payment",
               date: pay.date,
               customer: pay.customer,
               amount: pay.amount,
             }));
+            actions.appendChild(del);
             card.appendChild(line);
-            card.appendChild(del);
+            card.appendChild(actions);
           }
           root.appendChild(card);
         }
@@ -693,6 +711,7 @@
           const line = el("div", supplier.name + " · " + money(supplier.balance_owed), "cow");
           const set = el("button", "Balance badlein");
           set.type = "button";
+          set.className = "secondary";
           set.addEventListener("click", async () => {
             const next = window.prompt("Ab kitna baqi?", String(supplier.balance_owed));
             if (next == null) return;
@@ -732,6 +751,9 @@
         card.appendChild(el("h2", data.range === "month" ? "Is mahine" : "Is hafte"));
         card.appendChild(el("p", "Doodh " + data.milk_litres + " L", "tot"));
         card.appendChild(el("p", "Becha " + data.sold_litres + " L · " + money(data.sales_amount), "tot"));
+        if (data.sales_amount_missing > 0) {
+          card.appendChild(el("p", data.sales_amount_missing + " entries ki raqam nahi", "muted"));
+        }
         card.appendChild(el("p", "Wasool " + money(data.payments), "tot"));
         card.appendChild(el("p", "Kharcha " + money(data.expenses + data.fodder_cost), "tot"));
         card.appendChild(el("p", "Grahak baqi " + money(data.customers_due), "tot"));
