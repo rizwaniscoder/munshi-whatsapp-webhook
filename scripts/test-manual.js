@@ -513,6 +513,80 @@ async function main() {
   assert.deepStrictEqual((munshiMsg.payload.actions || []).map((action) => action.id), ["confirm_yes", "confirm_no", "confirm_edit"]);
   assert.ok(farmerMsg && munshiMsg.created_at > farmerMsg.created_at, "confirm card sorts after the farmer line");
 
+  assert.ok(page.body.includes("Gaye ke hisaab se (optional)"));
+  assert.ok(page.body.includes("Kul litre"));
+  assert.ok(page.body.includes('op: "add_day"'));
+  const doodhAt = page.body.indexOf('el("h2", "Doodh likhein")');
+  const cowLoopAt = page.body.indexOf("for (const cow of data.cows || [])");
+  assert.ok(doodhAt > 0 && cowLoopAt > doodhAt);
+
+  const milkFarm = await seed(sheets, "923200000333", "Latif");
+  const milkBase = `/r/${milkFarm.token}`;
+  const totalOnly = await request(server, "POST", milkBase + "/api/aaj", {
+    op: "add_day",
+    session: "am",
+    litres: 40,
+  });
+  assert.strictEqual(totalOnly.status, 200, totalOnly.body);
+  const totalAaj = await request(server, "GET", milkBase + "/api/aaj");
+  assert.strictEqual(totalAaj.json.milk_litres, 40);
+  assert.strictEqual(totalAaj.json.unsold_litres, 40);
+  assert.ok(!(totalAaj.json.cows || []).some((row) => String(row.name).toLowerCase() === "kul"));
+  assert.strictEqual((await request(server, "POST", milkBase + "/api/aaj", {
+    op: "add_sale", customer: "Pakistan hotel", litres: 10, rate_pkr: 200,
+  })).status, 200);
+  assert.strictEqual((await request(server, "POST", milkBase + "/api/aaj", {
+    op: "add_sale", customer: "Tabarak", litres: 5, rate_pkr: 180,
+  })).status, 200);
+  const withSales = await request(server, "GET", milkBase + "/api/aaj");
+  assert.strictEqual(withSales.json.milk_litres, 40);
+  assert.strictEqual(withSales.json.sold_litres, 15);
+  assert.strictEqual(withSales.json.unsold_litres, 25);
+  assert.strictEqual(withSales.json.sales.length, 2);
+  assert.strictEqual((await request(server, "POST", milkBase + "/api/aaj", {
+    op: "add", cow_name: "Gori", session: "am", litres: 18,
+  })).status, 200);
+  const withCow = await request(server, "GET", milkBase + "/api/aaj");
+  assert.strictEqual(withCow.json.milk_litres, 40, "per-cow litres sit beside the total");
+  assert.ok(withCow.json.cows.some((row) => row.name === "Gori" && row.subah === 18));
+  const milkWeek = await request(server, "GET", milkBase + "/api/hisaab?range=week");
+  assert.strictEqual(milkWeek.json.milk_litres, 40);
+
+  const voiceFarm = await seed(sheets, "923200000444", "Rashid");
+  const voiceBase = `/r/${voiceFarm.token}`;
+  assert.strictEqual((await request(server, "POST", voiceBase + "/api/manual", {
+    kind: "customer", name: "Pakistan hotel", rate_pkr: 200,
+  })).status, 200);
+  assert.strictEqual((await request(server, "POST", voiceBase + "/api/manual", {
+    kind: "customer", name: "Tabarak", rate_pkr: 180,
+  })).status, 200);
+  const heard = await request(server, "POST", voiceBase + "/turn", {
+    text: "aaj subah 40 litre hua, 10 Pakistan hotel ko, 5 Tabarak ko",
+    thread: "day:" + today,
+  });
+  assert.strictEqual(heard.status, 200, heard.body);
+  assert.strictEqual(heard.json.replies[0].kind, "confirm");
+  const heardText = JSON.stringify(heard.json.replies[0]);
+  assert.match(heardText, /40/);
+  assert.match(heardText, /Pakistan hotel/);
+  assert.match(heardText, /Tabarak/);
+  assert.doesNotMatch(heardText, /Gay ka naam/);
+  const heardChat = await request(server, "GET", voiceBase + "/api/chat?thread=day:" + today);
+  const heardCard = [...(heardChat.json.messages || [])].reverse().find((row) => row.payload && row.payload.kind === "confirm");
+  assert.ok(heardCard, "milk sentence stores a confirm card");
+  assert.strictEqual(heardCard.payload.state, "open");
+  const savedVoice = await request(server, "POST", voiceBase + "/turn", {
+    action: "confirm_yes",
+    thread: "day:" + today,
+  });
+  assert.strictEqual(savedVoice.status, 200, savedVoice.body);
+  const voiceAaj = await request(server, "GET", voiceBase + "/api/aaj");
+  assert.strictEqual(voiceAaj.json.milk_litres, 40, voiceAaj.body);
+  assert.strictEqual(voiceAaj.json.sold_litres, 15);
+  assert.strictEqual(voiceAaj.json.unsold_litres, 25);
+  assert.strictEqual(voiceAaj.json.sales.length, 2);
+  assert.ok(!(voiceAaj.json.cows || []).some((row) => row.name && row.name.toLowerCase() !== "kul" && row.rows && row.rows.length));
+
   const historySql = fs.readFileSync(path.join(migrationsDir, "20261120120000_record_history.sql"), "utf8");
   assert.ok(/create table public\.chat_messages/i.test(historySql));
   assert.ok(/thread_id text not null/i.test(historySql));
