@@ -108,6 +108,9 @@
     .empty { text-align: center; background: white; border-radius: var(--r); padding: 22px 14px; margin-top: 10px; color: var(--muted); }
     .empty strong { display: block; color: var(--ink); margin-bottom: 4px; }
     .cow { display: flex; justify-content: space-between; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
+    details.fold { margin-top: 8px; }
+    details.fold summary { min-height: 48px; display: flex; align-items: center; font-weight: 750; cursor: pointer; }
+    .sale-line { display: grid; grid-template-columns: 1.4fr 0.8fr; gap: 8px; }
     nav {
       position: fixed; left: 0; right: 0; bottom: 0;
       display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -493,9 +496,10 @@
         block.appendChild(el("strong", title));
         const fields = { index, type: entry.type };
         if (entry.type === "milk") {
-          fields.cow_name = input("text", "Gay");
-          fields.cow_name.value = entry.cow_name || "";
-          block.appendChild(field("Gay", fields.cow_name));
+          fields.cow_name = input("text", "Gay, agar chahiye");
+          const cowName = String(entry.cow_name || "");
+          fields.cow_name.value = !cowName || cowName.toLowerCase() === "kul" ? "" : cowName;
+          block.appendChild(field("Gay, agar chahiye", fields.cow_name));
         }
         if (entry.type === "sale") {
           fields.customer = input("text", "Grahak");
@@ -509,9 +513,10 @@
           fields.session = document.createElement("select");
           fields.session.appendChild(new Option("Subah", "am"));
           fields.session.appendChild(new Option("Shaam", "pm"));
+          fields.session.appendChild(new Option("Poora din", "day"));
           const session = String(entry.session || "").toLowerCase();
-          fields.session.value = session === "pm" || session === "shaam" ? "pm" : "am";
-          block.appendChild(field("Subah / Shaam", fields.session));
+          fields.session.value = session === "pm" || session === "shaam" ? "pm" : session === "am" || session === "subah" ? "am" : "day";
+          block.appendChild(field("Waqt", fields.session));
         }
         if (entry.type === "sale") {
           fields.rate_pkr = input("number", "Rate");
@@ -844,7 +849,7 @@
         const wasool = Number(data.wasool) || 0;
         slot.hidden = false;
         slot.textContent = "";
-        const bits = [["Doodh", (data.milk_litres || 0) + " L"], ["Sale", money(sale)], ["Wasooli", money(wasool)]];
+        const bits = [["Kul doodh", (data.milk_litres || 0) + " L"], ["Sale", money(sale)], ["Wasooli", money(wasool)]];
         for (const bit of bits) {
           const cell = el("button", "");
           cell.type = "button";
@@ -1064,7 +1069,7 @@
         const saleTotal = (data.sales || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
         const wasool = Number(data.wasool) || 0;
         const card = el("div", null, "home-sum quad");
-        for (const bit of [["Doodh", data.milk_litres + " L"], ["Sale", money(saleTotal)], ["Wasooli", money(wasool)], ["Bacha", data.unsold_litres + " L"]]) {
+        for (const bit of [["Kul doodh", data.milk_litres + " L"], ["Sale", money(saleTotal)], ["Wasooli", money(wasool)], ["Bacha", data.unsold_litres + " L"]]) {
           const cell = el("div");
           cell.appendChild(el("span", bit[0], "muted"));
           cell.appendChild(el("strong", bit[1]));
@@ -1074,21 +1079,76 @@
 
         const formCard = el("form", null, "card");
         formCard.appendChild(el("h2", "Doodh likhein"));
-        const cow = input("text", "Gay ka naam");
-        const session = chipPicker([["am", "Subah"], ["pm", "Shaam"]], "am", "seg inline");
-        const litres = input("number", "Litre");
+        const session = chipPicker([["am", "Subah"], ["pm", "Shaam"], ["day", "Poora din"]], "am", "seg inline");
+        const litres = input("number", "Kul litre");
         litres.classList.add("num-lg");
-        formCard.appendChild(field("Gay", cow));
         formCard.appendChild(field("Waqt", session));
-        formCard.appendChild(field("Litre", litres));
+        formCard.appendChild(field("Kul litre", litres));
+        const saleLines = el("div");
+        function addSaleLine() {
+          const row = el("div", null, "sale-line");
+          const who = input("text", "Grahak");
+          const qty = input("number", "Litre");
+          row.appendChild(who);
+          row.appendChild(qty);
+          saleLines.appendChild(row);
+        }
+        addSaleLine();
+        formCard.appendChild(el("p", "Becha, kis ko", "muted"));
+        formCard.appendChild(saleLines);
+        const moreSale = el("button", "Aur grahak");
+        moreSale.type = "button";
+        moreSale.className = "secondary";
+        moreSale.addEventListener("click", () => addSaleLine());
+        formCard.appendChild(moreSale);
+        const fold = document.createElement("details");
+        fold.className = "fold";
+        const summary = document.createElement("summary");
+        summary.textContent = "Gaye ke hisaab se (optional)";
+        fold.appendChild(summary);
+        const cowLines = el("div");
+        function addCowLine(name) {
+          const row = el("div", null, "sale-line");
+          const who = input("text", "Gay");
+          if (name) who.value = name;
+          const qty = input("number", "Litre");
+          row.appendChild(who);
+          row.appendChild(qty);
+          cowLines.appendChild(row);
+        }
+        const known = (data.cows || []).map((row) => row.name).filter((name) => name && name.toLowerCase() !== "kul");
+        if (known.length) known.forEach((name) => addCowLine(name));
+        else addCowLine("");
+        fold.appendChild(cowLines);
+        formCard.appendChild(fold);
         const save = el("button", "Likhein");
         save.type = "submit";
         save.className = "big";
         formCard.appendChild(save);
         formCard.addEventListener("submit", async (event) => {
           event.preventDefault();
+          const sales = [];
+          for (const row of saleLines.querySelectorAll(".sale-line")) {
+            const inputs = row.querySelectorAll("input");
+            const customer = inputs[0] && inputs[0].value.trim();
+            const qty = Number(inputs[1] && inputs[1].value);
+            if (customer && qty > 0) sales.push({ customer, litres: qty });
+          }
+          const cows = [];
+          for (const row of cowLines.querySelectorAll(".sale-line")) {
+            const inputs = row.querySelectorAll("input");
+            const cow_name = inputs[0] && inputs[0].value.trim();
+            const qty = Number(inputs[1] && inputs[1].value);
+            if (cow_name && qty > 0) cows.push({ cow_name, litres: qty });
+          }
           try {
-            await api("aaj", { op: "add", cow_name: cow.value, session: session.value, litres: Number(litres.value) });
+            await api("aaj", {
+              op: "add_day",
+              session: session.value,
+              litres: Number(litres.value),
+              sales,
+              cows,
+            });
             renderAaj();
           } catch (err) { status.textContent = err.message; }
         });
@@ -1131,9 +1191,9 @@
           } catch (err) { status.textContent = err.message; }
         });
         root.appendChild(sale);
+        if ((data.cows || []).length) {
         const cows = el("div", null, "card");
         cows.appendChild(el("h2", "Gayein"));
-        if (!(data.cows || []).length) cows.appendChild(el("p", "Abhi koi doodh nahi.", "muted"));
         for (const cow of data.cows || []) {
           const line = el("div", null, "cow");
           line.appendChild(el("strong", cow.name));
@@ -1175,6 +1235,7 @@
           }
         }
         root.appendChild(cows);
+        }
         for (const item of data.sales || []) {
           const line = el("button", item.customer + " · " + item.litres + " L · " + money(item.amount));
           line.type = "button";
@@ -1682,7 +1743,7 @@
         root.appendChild(likhein);
         const card = el("div", null, "card stats");
         card.appendChild(el("h2", data.range === "month" ? "Is mahine" : "Is hafte"));
-        card.appendChild(el("p", "Doodh " + data.milk_litres + " L", "tot"));
+        card.appendChild(el("p", "Kul doodh " + data.milk_litres + " L", "tot"));
         card.appendChild(el("p", "Becha " + data.sold_litres + " L · " + money(data.sales_amount), "tot"));
         if (data.sales_amount_missing > 0) {
           card.appendChild(el("p", data.sales_amount_missing + " entries ki raqam nahi", "muted"));
@@ -1726,7 +1787,11 @@
 
     function recordTitle(row) {
       if (!row) return "Record";
-      if (row.kind === "milk") return (row.cow_name || "Gay") + " " + (row.session === "pm" ? "shaam" : "subah") + " " + row.litres + " L";
+      if (row.kind === "milk") {
+        const who = !row.cow_name || String(row.cow_name).toLowerCase() === "kul" ? "Kul" : row.cow_name;
+        const when = row.session === "pm" ? "shaam" : row.session === "am" ? "subah" : "din";
+        return who + " " + when + " " + row.litres + " L";
+      }
       if (row.kind === "sale") return (row.customer || "") + " " + row.litres + " L " + money(row.amount);
       if (row.kind === "customer_adjust") return (row.customer || "") + " " + (row.direction === "credit" ? "credit" : "jama") + " " + money(Math.abs(row.balance_added || row.amount || 0));
       if (row.kind === "payment") return (row.customer || "") + " wasool " + money(row.amount);
@@ -1856,7 +1921,7 @@
           return found && found.rate_pkr ? String(found.rate_pkr) : "";
         };
         const specs = {
-          milk: [["names", "Gay", data.cows], ["select", "Waqt", [["am", "Subah"], ["pm", "Shaam"]]], ["number", "Litre"], ["date", "Tareekh"]],
+          milk: [["select", "Waqt", [["am", "Subah"], ["pm", "Shaam"], ["day", "Poora din"]]], ["number", "Kul litre"], ["text", "Gay, agar chahiye"], ["date", "Tareekh"]],
           sale: [["names", "Grahak", customers], ["number", "Litre"], ["number", "Rate"], ["select", "Paise", [["udhaar", "Udhaar"], ["nagd", "Nagd"]]], ["date", "Tareekh"]],
           payment: [["names", "Grahak", customers], ["number", "Raqam"], ["date", "Tareekh"]],
           customer_adjust: [["names", "Grahak", customers], ["select", "Kisam", [["debit", "Jama / udhaar"], ["credit", "Credit"]]], ["number", "Raqam"], ["text", "Yad"], ["date", "Tareekh"]],
@@ -1881,7 +1946,7 @@
         for (const spec of specs[chosen] || []) {
           const key = ["Gay", "Waqt", "Litre", "Tareekh", "Grahak", "Rate", "Paise", "Kisam", "Raqam", "Note", "Cheez", "Supplier", "Wazan", "Unit", "Qeemat", "Nagd", "Committee", "Halat", "Naam", "Shuru", "Janwar", "Wajah", "Tafseel", "Doctor", "Kharcha", "Roz kitna", "Qisam", "Nasl", "Roz litre", "Phone", "Shuruati baqi", "Supply", "Bill"][nodes.length];
           const valueMap = {
-            milk: [current && current.cow_name, current && current.session, current && current.litres, current && current.date],
+            milk: [current && (current.session || "day"), current && current.litres, current && current.cow_name !== "kul" ? current.cow_name : "", current && current.date],
             sale: [current && current.customer, current && current.litres, current && current.rate_pkr, current && current.cash_received > 0 ? "nagd" : "udhaar", current && current.date],
             payment: [current && current.customer, current && current.amount, current && current.date],
             customer_adjust: [current && current.customer, current && current.direction, current && Math.abs(current.balance_added || current.amount || 0), current && current.note, current && current.date],
@@ -1915,7 +1980,7 @@
           event.preventDefault();
           const payload = { op: "save", kind: chosen, id: current && current.id || "" };
           const read = (index) => nodes[index] ? nodes[index].value : "";
-          if (chosen === "milk") Object.assign(payload, { cow_name: read(0), session: read(1), litres: Number(read(2)), date: read(3) });
+          if (chosen === "milk") Object.assign(payload, { session: read(0), litres: Number(read(1)), cow_name: read(2), date: read(3) });
           if (chosen === "sale") Object.assign(payload, { customer: read(0), litres: Number(read(1)), rate_pkr: read(2), pay: read(3), date: read(4) });
           if (chosen === "payment") Object.assign(payload, { customer: read(0), amount: Number(read(1)), date: read(2), method: "wasool" });
           if (chosen === "customer_adjust") Object.assign(payload, { customer: read(0), direction: read(1), amount: Number(read(2)), note: read(3), date: read(4) });

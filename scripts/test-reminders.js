@@ -186,6 +186,34 @@ function bothSessions(cows, litres = 10) {
   assert.doesNotMatch(eveningText, /Sukhi/);
   assert.doesNotMatch(eveningText, /\bHaan\b/);
 
+  const totalMorning = findGaps(
+    {
+      cows: [
+        ["name", "status"],
+        ["Gori", "milking"],
+        ["Kali", "milking"],
+      ],
+      milk: [
+        ["date", "session", "cow_name", "litres"],
+        [DATE, "am", "kul", 40],
+        [DATE, "am", "Gori", 18],
+      ],
+      sales: [["date", "customer", "litres"], [DATE, "Aslam", 15]],
+    },
+    DATE
+  );
+  assert.deepStrictEqual(totalMorning.missingBoth, []);
+  assert.deepStrictEqual(totalMorning.missingMorningOnly, []);
+  assert.strictEqual(totalMorning.milkLitres, 40);
+  assert.strictEqual(totalMorning.unaccountedLitres, 25);
+  assert.strictEqual(formatGapMessage(totalMorning, "morning", DATE), "");
+  const totalEvening = formatGapMessage(totalMorning, "evening", DATE);
+  assert.match(totalEvening, /Shaam ka kul doodh nahi likha/);
+  assert.doesNotMatch(totalEvening, /Gori/);
+  assert.doesNotMatch(totalEvening, /Kali/);
+  assert.ok(issuesFor(totalMorning, "evening").includes("missing_evening"));
+  assert.deepStrictEqual(issuesFor(totalMorning, "morning"), []);
+
   const over = findGaps(
     {
       cows: [["name", "status"], ["Gori", "milking"]],
