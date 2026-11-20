@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#14532d">
+  <meta name="theme-color" content="#0b4f34">
   <meta name="robots" content="noindex, nofollow">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -16,43 +16,61 @@
     :root {
       color-scheme: light;
       --ink: #142018;
-      --muted: #3f4f44;
-      --paper: #f4f7f2;
+      --muted: #3d4f45;
+      --paper: #f3f6f4;
       --card: #ffffff;
-      --green: #166534;
-      --green-dark: #14532d;
-      --line: #d7e3d6;
-      --danger: #b91c1c;
+      --green: #0f6b45;
+      --green-dark: #0b4f34;
+      --green-soft: #e7f6ee;
+      --line: #d7e4db;
+      --danger: #b42318;
+      --milne: #b42318;
+      --dene: #067647;
+      --shadow: 0 8px 24px rgba(20, 40, 30, 0.06);
+      --nav: calc(64px + env(safe-area-inset-bottom));
     }
+    .chat-pane[hidden] { display: none !important; }
+    section[hidden] { display: none !important; }
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; }
     body {
       min-height: 100dvh;
-      font-family: "Segoe UI", "Noto Sans", sans-serif;
+      font-family: system-ui, "Segoe UI", "Noto Sans", sans-serif;
       background: var(--paper);
       color: var(--ink);
-      padding: calc(12px + env(safe-area-inset-top)) 12px calc(92px + env(safe-area-inset-bottom));
+      font-size: 17px;
+      line-height: 1.4;
+      padding: calc(12px + env(safe-area-inset-top)) 14px calc(104px + env(safe-area-inset-bottom));
     }
     main { max-width: 36rem; margin: 0 auto; }
-    header h1 { margin: 0; font-size: 1.7rem; }
-    header p { margin: 4px 0 0; color: var(--muted); font-size: 1.05rem; }
-    button, input, select { font: inherit; }
-    button { touch-action: manipulation; }
-    .hint { margin: 12px 0 0; color: var(--muted); font-size: 1rem; }
-    #record {
-      width: 100%;
-      margin-top: 18px;
-      min-height: 7.5rem;
+    button, input, select, textarea { font: inherit; }
+    button { touch-action: manipulation; cursor: pointer; }
+    :focus-visible { outline: 3px solid #86efac; outline-offset: 2px; }
+    .app-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+    .app-head h1 { margin: 0; font-size: 1.45rem; line-height: 1.2; }
+    .eyebrow { margin: 0 0 2px; color: var(--green); font-size: 0.82rem; font-weight: 800; letter-spacing: 0.04em; }
+    .header-action {
+      min-height: 48px;
+      padding: 0 16px;
       border: 0;
-      border-radius: 1.4rem;
+      border-radius: 999px;
       background: var(--green);
       color: white;
-      font-size: 2rem;
-      font-weight: 700;
+      font-weight: 800;
     }
+    .hint, .legend { margin: 8px 2px 0; color: var(--muted); font-size: 0.95rem; }
+    .status { min-height: 1.2rem; margin: 8px 0 0; font-size: 1rem; font-weight: 700; color: var(--green-dark); }
+    #record.mic {
+      width: 56px; min-width: 56px; height: 56px; min-height: 56px;
+      margin: 0; padding: 0; border: 0; border-radius: 999px;
+      background: var(--green); color: white;
+      display: grid; place-items: center;
+    }
+    #record.mic svg { width: 26px; height: 26px; }
+    #record.mic .icon-stop, #record.mic[data-state="recording"] .icon-mic { display: none; }
+    #record.mic[data-state="recording"] .icon-stop { display: block; }
     #record[data-state="recording"] { background: var(--danger); }
     #record:disabled { opacity: 0.65; }
-    .status { min-height: 1.4rem; margin: 12px 0 0; font-size: 1.15rem; font-weight: 650; }
     #reply {
       margin-top: 14px;
       background: var(--card);
@@ -70,84 +88,130 @@
     #actions, .row-actions, .choice { display: flex; gap: 8px; }
     .choice, .row-actions { flex-wrap: wrap; }
     #actions { display: none; margin-top: 12px; }
-    #actions button, .big, .choice button, .row-actions button, button.secondary {
-      min-height: 3.6rem;
-      border-radius: 0.9rem;
-      border: 2px solid var(--green-dark);
+    #actions button, .big, .choice button, .row-actions button, button.secondary, .chips button {
+      min-height: 48px;
+      border-radius: 14px;
+      border: 1.5px solid var(--line);
       background: white;
       color: var(--green-dark);
-      font-size: 1.2rem;
-      font-weight: 700;
+      font-size: 1.05rem;
+      font-weight: 750;
       padding: 0 14px;
     }
-    #actions button, .row-actions button, .choice button { flex: 1 1 8rem; }
-    #actions button[data-action="confirm_yes"] { background: var(--green); color: white; }
-    button.secondary[aria-pressed="true"] { background: var(--green); color: white; }
+    #actions button, .row-actions button, .choice button { flex: 1 1 7.5rem; }
+    #actions button[data-action="confirm_yes"] { background: var(--green); color: white; border-color: var(--green); }
+    button.secondary[aria-pressed="true"], .choice button.big { background: var(--green); color: white; border-color: var(--green); }
     form.line, .stack { display: flex; gap: 8px; margin-top: 14px; }
     .stack { flex-direction: column; }
-    input[type="text"], input[type="number"], input[type="date"], select, textarea {
+    input[type="text"], input[type="number"], input[type="date"], input[type="file"], select, textarea {
       width: 100%;
-      min-height: 3.6rem;
-      border-radius: 0.9rem;
-      border: 1px solid var(--line);
+      min-height: 48px;
+      border-radius: 14px;
+      border: 1.5px solid var(--line);
       padding: 0 14px;
-      font-size: 1.15rem;
+      font-size: 17px;
       background: white;
+      color: var(--ink);
     }
-    form.line button, .big, button.secondary {
-      min-height: 3.6rem;
-      border-radius: 0.9rem;
-      font-weight: 700;
-    }
-    form.line button, .big {
+    textarea { padding: 12px 14px; min-height: 96px; }
+    form.line button, .big, button.secondary { min-height: 48px; border-radius: 14px; font-weight: 750; }
+    .big {
       border: 0;
-      background: var(--green-dark);
+      background: var(--green);
       color: white;
     }
     .big, button.secondary { width: 100%; }
-    form.line button { min-width: 6.5rem; width: auto; }
+    .choice .big, .choice button.secondary, .chat-top .secondary { width: auto; }
+    form.line button { min-width: 6.5rem; width: auto; border: 0; background: var(--green); color: white; }
     .card {
       background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 1rem;
+      border: 0;
+      border-radius: 18px;
       padding: 14px;
       margin-top: 12px;
+      box-shadow: var(--shadow);
     }
-    .card h2 { margin: 0 0 8px; font-size: 1.35rem; }
-    .muted { color: var(--muted); font-size: 1.05rem; }
-    .tot { font-size: 1.35rem; font-weight: 750; margin: 8px 0; }
+    .card h2 { margin: 0 0 8px; font-size: 1.25rem; }
+    .muted { color: var(--muted); font-size: 0.95rem; }
+    .tot { font-size: 1.15rem; font-weight: 750; margin: 8px 0; background: var(--paper); border-radius: 12px; padding: 10px 12px; }
+    .empty {
+      text-align: center;
+      background: white;
+      border-radius: 18px;
+      padding: 22px 16px;
+      margin-top: 12px;
+      color: var(--muted);
+      box-shadow: var(--shadow);
+    }
+    .empty strong { display: block; color: var(--ink); font-size: 1.15rem; margin-bottom: 4px; }
     .cow { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 1.15rem; }
     nav {
       position: fixed;
       left: 0; right: 0; bottom: 0;
       display: grid;
-      grid-template-columns: repeat(6, 1fr);
+      grid-template-columns: repeat(6, minmax(0, 1fr));
       gap: 2px;
-      padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
-      background: white;
+      padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+      background: rgba(255, 255, 255, 0.96);
       border-top: 1px solid var(--line);
-      z-index: 5;
+      z-index: 20;
     }
     nav button {
-      min-height: 3.6rem;
+      min-height: 52px;
       border: 0;
-      border-radius: 0.8rem;
+      border-radius: 12px;
       background: transparent;
-      color: var(--ink);
-      font-size: 0.78rem;
-      font-weight: 700;
-      padding: 0 2px;
+      color: var(--muted);
+      font-size: 0.68rem;
+      font-weight: 750;
+      padding: 4px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
     }
-    nav button[aria-current="page"] { background: #dcfce7; color: var(--green-dark); }
+    nav button svg { width: 22px; height: 22px; }
+    nav button[aria-current="page"] { background: var(--green-soft); color: var(--green-dark); }
     .sheet {
       position: fixed;
-      inset: 0;
-      z-index: 30;
+      left: 0; right: 0; bottom: 0;
+      top: auto;
+      max-height: 92dvh;
+      z-index: 40;
       background: var(--paper);
       overflow: auto;
-      padding: 12px 12px calc(96px + env(safe-area-inset-bottom));
+      border-radius: 22px 22px 0 0;
+      padding: 18px 14px calc(18px + env(safe-area-inset-bottom));
+      box-shadow: 0 -12px 40px rgba(16, 32, 24, 0.18);
     }
-    .sheet[hidden] { display: none; }
+    .sheet::before {
+      content: "";
+      display: block;
+      width: 42px;
+      height: 4px;
+      border-radius: 999px;
+      background: #c5d4cb;
+      margin: -6px auto 12px;
+    }
+    .sheet[hidden] { display: none !important; }
+    #scrim { position: fixed; inset: 0; background: rgba(16, 32, 24, 0.45); z-index: 35; }
+    #scrim[hidden] { display: none !important; }
+    #toast {
+      position: fixed;
+      left: 14px; right: 14px;
+      top: calc(10px + env(safe-area-inset-top));
+      z-index: 80;
+      background: var(--green-dark);
+      color: white;
+      border-radius: 14px;
+      padding: 14px 16px;
+      font-weight: 750;
+      text-align: center;
+      box-shadow: var(--shadow);
+    }
+    #toast.bad { background: var(--danger); }
+    #toast[hidden] { display: none !important; }
     .line-btn {
       width: 100%;
       text-align: left;
@@ -156,59 +220,115 @@
     }
     #confirm {
       position: fixed;
-      left: 12px; right: 12px;
-      bottom: calc(84px + env(safe-area-inset-bottom));
+      left: 16px; right: 16px;
+      top: 50%;
+      bottom: auto;
+      transform: translateY(-50%);
+      z-index: 70;
       background: white;
-      border: 2px solid var(--danger);
-      border-radius: 1rem;
-      padding: 12px;
+      border: 0;
+      border-radius: 18px;
+      padding: 16px;
       display: none;
+      box-shadow: 0 16px 40px rgba(16, 32, 24, 0.2);
     }
-    #confirm p { margin: 0 0 8px; font-size: 1.2rem; font-weight: 700; }
+    #confirm p { margin: 0 0 12px; font-size: 1.2rem; font-weight: 750; }
     .danger { background: var(--danger) !important; color: white !important; border-color: var(--danger) !important; }
-    .chat-pane { display: flex; flex-direction: column; min-height: calc(100dvh - 150px); }
+    .chat-pane { display: flex; flex-direction: column; min-height: calc(100dvh - 168px); }
     .chat-top { display: flex; gap: 8px; }
-    .chat-top button { flex: 1; }
-    .thread { flex: 1; overflow: auto; max-height: calc(100dvh - 230px); padding-bottom: 8px; }
-    .bubble { max-width: 85%; margin-top: 8px; padding: 10px 12px; border-radius: 1rem; font-size: 1.05rem; line-height: 1.35; white-space: pre-wrap; }
+    .chat-top button { flex: 1; min-height: 48px; }
+    .thread { flex: 1; overflow: auto; min-height: 180px; padding: 4px 0 8px; }
+    .bubble { max-width: 86%; margin-top: 8px; padding: 12px 14px; border-radius: 18px; font-size: 1.05rem; line-height: 1.4; white-space: pre-wrap; }
     .bubble p { margin: 0 0 6px; }
-    .mine { margin-left: auto; background: #166534; color: white; }
-    .theirs { margin-right: auto; background: white; border: 1px solid var(--line); }
-    .receipt { border-color: #166534; }
-    .composer { position: sticky; bottom: 0; display: flex; gap: 8px; align-items: center; background: var(--paper); padding-top: 8px; }
+    .bubble button { min-height: 44px; margin-top: 6px; }
+    .mine { margin-left: auto; background: var(--green); color: white; border-bottom-right-radius: 6px; }
+    .theirs { margin-right: auto; background: white; border-bottom-left-radius: 6px; box-shadow: var(--shadow); }
+    .receipt { box-shadow: inset 0 0 0 1.5px #b7e0c8; }
+    .chips { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 8px; scrollbar-width: none; }
+    .chips::-webkit-scrollbar { display: none; }
+    .chips button { flex: 0 0 auto; border-radius: 999px; padding: 0 12px; }
+    .composer[hidden],
+    .chips[hidden] { display: none !important; }
+    .composer {
+      position: sticky;
+      bottom: 0;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      background: var(--paper);
+      padding: 8px 0 2px;
+      z-index: 4;
+    }
     .composer input { flex: 1; }
-    #plus, .mic {
-      width: 3.6rem; min-width: 3.6rem; height: 3.6rem; border-radius: 999px;
-      border: 0; font-weight: 800; font-size: 1.3rem;
+    #plus {
+      width: 48px; min-width: 48px; height: 48px; border-radius: 999px;
+      border: 1.5px solid var(--green-dark); background: white; color: var(--green-dark);
+      font-weight: 800; font-size: 1.6rem; line-height: 1; padding: 0;
     }
-    #plus { background: white; border: 2px solid var(--green-dark); color: var(--green-dark); }
-    .mic { background: var(--green); color: white; font-size: 0.72rem; }
-    .mic[data-state="recording"] { background: var(--danger); }
-    .party-tabs, .summary { display: flex; gap: 6px; }
-    .party-tabs button, .summary div { flex: 1; }
+    .party-tabs { display: flex; gap: 8px; }
+    .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: transparent; box-shadow: none; padding: 0; }
+    .summary div { background: white; border-radius: 16px; padding: 12px; box-shadow: var(--shadow); }
+    .summary .dene, .summary .milne { font-size: 1.35rem; margin: 4px 0 0; }
     .avatar {
-      width: 2.6rem; height: 2.6rem; border-radius: 999px; display: grid; place-items: center;
-      background: #dcfce7; color: var(--green-dark); font-weight: 800; flex: 0 0 auto;
+      width: 48px; height: 48px; border-radius: 999px; display: grid; place-items: center;
+      background: var(--green-soft); color: var(--green-dark); font-weight: 800; flex: 0 0 auto;
     }
-    .party-row { display: flex; gap: 8px; align-items: center; width: 100%; text-align: left; background: white; border: 1px solid var(--line); border-radius: 0.9rem; padding: 8px; margin-top: 8px; min-height: 3.6rem; }
+    .party-row {
+      display: flex; gap: 10px; align-items: center; width: 100%; text-align: left;
+      background: white; border: 0; border-radius: 16px; padding: 10px; margin-top: 8px; min-height: 64px;
+      box-shadow: var(--shadow);
+    }
     .party-row strong, .party-row span { display: block; }
+    .party-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .grow { flex: 1; min-width: 0; }
-    .milne { color: #b91c1c; font-weight: 800; }
-    .dene { color: #166534; font-weight: 800; }
-    .zero { color: #6b7280; font-weight: 700; }
+    .party-bal { flex: 0 0 auto; text-align: right; max-width: 46%; }
+    .milne { color: var(--milne); font-weight: 800; }
+    .dene { color: var(--dene); font-weight: 800; }
+    .zero { color: #4b5563; font-weight: 750; }
+    .milne .muted, .dene .muted, .zero .muted { color: inherit; font-weight: 750; font-size: 0.82rem; }
     .hide-bal .money, .hide-bal .milne, .hide-bal .dene, .hide-bal .zero { visibility: hidden; }
-    .float-add { position: fixed; right: 12px; bottom: calc(78px + env(safe-area-inset-bottom)); z-index: 6; width: auto; min-height: 3.4rem; border-radius: 999px; padding: 0 16px; }
-    table.khata { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
-    table.khata th, table.khata td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
-    #plus-menu[hidden] { display: none; }
+    .float-add {
+      position: static;
+      display: block;
+      width: 100%;
+      margin-top: 12px;
+      min-height: 48px;
+      border-radius: 999px;
+    }
+    table.khata td.milne, table.khata td.dene, table.khata td.zero { text-align: right; }
+    .baqi-label { display: block; font-size: 0.72rem; font-weight: 750; }
+    #pane-hisaab .choice { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 12px; }
+    #pane-hisaab .choice button { width: auto; min-width: 0; }
+    #pane-hisaab .choice button.on { background: var(--green); color: white; border-color: var(--green); }
+    .table-wrap { overflow-x: auto; margin-top: 8px; }
+    table.khata { width: 100%; border-collapse: collapse; font-size: 0.82rem; table-layout: fixed; }
+    table.khata th, table.khata td { text-align: left; padding: 8px 3px; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+    table.khata th { color: var(--muted); font-size: 0.72rem; }
+    table.khata th:nth-child(1), table.khata td:nth-child(1) { width: 22%; }
+    table.khata th:nth-child(2), table.khata td:nth-child(2) { width: 24%; }
+    table.khata th:nth-child(3), table.khata td:nth-child(3) { width: 16%; }
+    table.khata th:nth-child(4), table.khata td:nth-child(4) { width: 18%; }
+    table.khata th:nth-child(5), table.khata td:nth-child(5) { width: 20%; }
+    .tools { display: grid; grid-template-columns: 1fr 1fr 1fr; }
+    .tools input { grid-column: 1 / -1; width: 100%; }
+    @media (max-width: 420px) {
+      body { padding-left: 10px; padding-right: 10px; }
+      .app-head h1 { font-size: 1.25rem; }
+      nav button { font-size: 0.62rem; min-height: 48px; }
+      .bubble { font-size: 1rem; }
+      .chips { display: grid; grid-template-columns: 1fr 1fr; overflow: visible; }
+      .chips button { width: 100%; }
+    }
   </style>
 </head>
 <body>
   <main>
-    <header>
-      <h1>Munshi</h1>
-      <p id="farm"></p>
-      <button id="open-likhein" class="big" type="button">Likhein</button>
+    <header class="app-head">
+      <div>
+        <p class="eyebrow">Munshi</p>
+        <h1 id="farm"></h1>
+      </div>
+      <button id="open-likhein" class="header-action" type="button">Likhein</button>
     </header>
     <section id="pane-bolein" class="chat-pane">
       <div class="chat-top">
@@ -220,11 +340,19 @@
       <div id="reply" hidden></div>
       <div id="actions" hidden></div>
       <div id="edit-box"></div>
-      <div id="plus-menu" class="card" hidden></div>
+      <div class="chips" id="quick-chips">
+        <button type="button" data-kind="milk">Doodh likhein</button>
+        <button type="button" data-kind="sale">Sale</button>
+        <button type="button" data-kind="payment">Wasooli</button>
+        <button type="button" data-kind="expense">Kharcha</button>
+      </div>
       <form id="text-form" class="composer">
         <button type="button" id="plus" aria-label="Likhein">+</button>
-        <input id="text" type="text" name="text" maxlength="2000" autocomplete="off" placeholder="Message likhein">
-        <button id="record" class="mic" type="button" data-state="idle" aria-label="Record">Record</button>
+        <input id="text" type="text" name="text" maxlength="2000" autocomplete="off" placeholder="Yahan likhein">
+        <button id="record" class="mic" type="button" data-state="idle" aria-label="Record">
+          <svg class="icon-mic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V7a3 3 0 0 0-6 0v4a3 3 0 0 0 3 3Zm5-3a1 1 0 1 0-2 0 3 3 0 0 1-6 0 1 1 0 1 0-2 0 5 5 0 0 0 4 4.9V18H9a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2h-2v-2.1A5 5 0 0 0 17 11Z"/></svg>
+          <svg class="icon-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor"/></svg>
+        </button>
       </form>
     </section>
     <section id="pane-aaj" hidden>
@@ -248,22 +376,25 @@
       <div id="tareekh-body"></div>
     </section>
   </main>
+  <div id="scrim" hidden></div>
+  <div id="toast" role="status" hidden></div>
+  <div id="plus-menu" class="sheet" hidden></div>
   <div id="editor" class="sheet" hidden></div>
   <div id="ledger-view" class="sheet" hidden></div>
-  <div id="confirm">
+  <div id="confirm" role="dialog" aria-modal="true">
     <p>Pakka hatana hai?</p>
     <div class="choice">
-      <button type="button" id="confirm-yes">Haan, hatayein</button>
-      <button type="button" id="confirm-no">Nahi</button>
+      <button type="button" id="confirm-yes" class="danger">Haan, hatayein</button>
+      <button type="button" id="confirm-no" class="secondary">Nahi</button>
     </div>
   </div>
   <nav>
-    <button type="button" data-tab="bolein">Bolein</button>
-    <button type="button" data-tab="aaj">Aaj</button>
-    <button type="button" data-tab="grahak">Grahak</button>
-    <button type="button" data-tab="khata">Khata</button>
-    <button type="button" data-tab="hisaab">Hisaab</button>
-    <button type="button" data-tab="tareekh">Tareekh</button>
+    <button type="button" data-tab="bolein"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v7A2.5 2.5 0 0 1 16.5 16H9l-4 3.2V13.5A2.5 2.5 0 0 1 5 11V6.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span>Bolein</span></button>
+    <button type="button" data-tab="aaj"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M18 6l-1.6 1.6M7.6 16.4 6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Aaj</span></button>
+    <button type="button" data-tab="grahak"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="9" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="16" cy="10" r="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4.5 18.5c.6-2.4 2.4-3.6 4.5-3.6s3.9 1.2 4.5 3.6M14 15.2c1.3-.3 2.6.1 3.5 1.3.6.8 1 1.6 1.2 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Grahak</span></button>
+    <button type="button" data-tab="khata"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5h8.5A2.5 2.5 0 0 1 18 7v12.5H8.2A2.2 2.2 0 0 1 6 17.3V6.7A2.2 2.2 0 0 1 8.2 4.5H7Z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M6 17.2h12" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><span>Khata</span></button>
+    <button type="button" data-tab="hisaab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V10M10 19V5M15 19v-7M20 19H4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Hisaab</span></button>
+    <button type="button" data-tab="tareekh"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 8.2V12l2.6 1.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Tareekh</span></button>
   </nav>
   <script id="boot" type="application/json">__BOOT_JSON__</script>
   <script>
@@ -279,6 +410,49 @@
     const textInput = document.getElementById("text");
     const confirmBox = document.getElementById("confirm");
     farm.textContent = boot.farm || "Munshi";
+
+    function setMic(state) {
+      recordBtn.dataset.state = state;
+      recordBtn.setAttribute("aria-label", state === "recording" ? "Rok dein" : "Record");
+    }
+
+    let toastTimer = 0;
+    function toast(text, bad) {
+      const node = document.getElementById("toast");
+      if (!node || !text) return;
+      node.textContent = text;
+      node.classList.toggle("bad", !!bad);
+      node.hidden = false;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { node.hidden = true; }, 2400);
+    }
+
+    function todayValue() {
+      try {
+        return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+      } catch (err) {
+        return new Date().toISOString().slice(0, 10);
+      }
+    }
+
+    function rememberedRate(name) {
+      try { return localStorage.getItem("munshi-rate:" + String(name || "").trim().toLowerCase()) || ""; } catch (err) { return ""; }
+    }
+
+    function rememberRate(name, rate) {
+      if (!name || rate == null || rate === "") return;
+      try { localStorage.setItem("munshi-rate:" + String(name).trim().toLowerCase(), String(rate)); } catch (err) {}
+    }
+
+    function syncScrim() {
+      const scrim = document.getElementById("scrim");
+      if (!scrim) return;
+      const plus = document.getElementById("plus-menu");
+      const editor = document.getElementById("editor");
+      const ledger = document.getElementById("ledger-view");
+      const sheetOpen = [plus, editor, ledger].some((el) => el && !el.hidden);
+      scrim.hidden = !(sheetOpen || confirmBox.style.display === "block");
+    }
 
     let recorder = null;
     let chunks = [];
@@ -366,7 +540,7 @@
         formEl.appendChild(block);
         rows.push(fields);
       });
-      const save = el("button", "Save");
+      const save = el("button", "Mehfooz");
       save.type = "submit";
       save.className = "big";
       const again = el("button", "Dobara record karein");
@@ -469,7 +643,9 @@
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || data.ok === false) {
-          statusEl.textContent = data.error || "Masla aa gaya. Thori dair baad dubara koshish karein.";
+          const message = data.error || "Masla aa gaya. Thori dair baad dubara koshish karein.";
+          statusEl.textContent = message;
+          toast(message, true);
           return;
         }
         statusEl.textContent = "";
@@ -478,6 +654,7 @@
         paintThread();
       } catch (err) {
         statusEl.textContent = "Internet nahi chal raha. Dubara koshish karein.";
+        toast(statusEl.textContent, true);
       } finally {
         setBusy(false);
         recordBtn.disabled = false;
@@ -505,8 +682,7 @@
       recorder.onstop = async () => {
         clearTimeout(stopTimer);
         stream.getTracks().forEach((track) => track.stop());
-        recordBtn.dataset.state = "idle";
-        recordBtn.textContent = "Record";
+        setMic("idle");
         const type = recorder.mimeType || mime || "audio/webm";
         const blob = new Blob(chunks, { type });
         if (!blob.size) {
@@ -516,8 +692,7 @@
         await sendTurn(blob, true);
       };
       recorder.start();
-      recordBtn.dataset.state = "recording";
-      recordBtn.textContent = "Rok dein";
+      setMic("recording");
       statusEl.textContent = "Sun raha hoon...";
       stopTimer = setTimeout(() => {
         if (recorder && recorder.state === "recording") recorder.stop();
@@ -631,8 +806,16 @@
       const box = extra && extra.before ? el("div") : thread;
       for (const msg of data.messages || []) appendBubble(msg, extra && extra.before ? box : thread);
       if (extra && extra.before) thread.prepend(box);
+      if (!(data.messages || []).length && !(extra && extra.before)) {
+        const hello = el("div", null, "empty");
+        hello.appendChild(el("strong", "Salam"));
+        hello.appendChild(el("p", "Bolein, likhein, ya neeche se kaam chunein."));
+        thread.appendChild(hello);
+      }
       if (!(extra && extra.before)) thread.scrollTop = thread.scrollHeight;
       form.hidden = threadReadOnly;
+      const chips = document.getElementById("quick-chips");
+      if (chips) chips.hidden = threadReadOnly;
     }
 
     async function showOldChats() {
@@ -677,6 +860,11 @@
       activeThread = data.thread_id;
       threadReadOnly = false;
       paintThread().catch((err) => { statusEl.textContent = err.message; });
+    });
+    document.getElementById("quick-chips").addEventListener("click", (event) => {
+      const button = event.target.closest("button");
+      if (!button || threadReadOnly) return;
+      openEditor(button.dataset.kind);
     });
     document.getElementById("plus").addEventListener("click", () => {
       const menu = document.getElementById("plus-menu");
@@ -733,6 +921,7 @@
         node.min = "0";
         node.step = "0.1";
       }
+      if (type === "date") node.value = todayValue();
       return node;
     }
 
@@ -744,26 +933,50 @@
       } : { method: "GET" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.ok === false) {
-        const err = new Error(data.error || "Masla aa gaya.");
+        const message = data.error || "Masla aa gaya.";
+        toast(message, true);
+        const err = new Error(message);
         err.status = res.status;
         throw err;
       }
+      if (body && !/^chat/.test(path)) {
+        const op = body.op;
+        toast(op === "delete" ? "Hat gaya." : op === "restore" || op === "unarchive" ? "Wapas aa gaya." : op === "archive" ? "Chhupa diya." : "Mehfooz ho gaya.");
+      }
       return data;
+    }
+
+    function signedAmount(kind, source) {
+      if (source && typeof source === "object" && source.signed_balance != null && source.signed_balance !== "") {
+        return Number(source.signed_balance) || 0;
+      }
+      const raw = Number(source && typeof source === "object" ? source.balance : source) || 0;
+      return kind === "supplier" ? -raw : raw;
+    }
+
+    function balanceView(signed) {
+      const value = Math.round(Number(signed) || 0);
+      if (Math.abs(value) < 1) return { tone: "zero", label: "Barabar", text: money(0) };
+      if (value > 0) return { tone: "milne", label: "Milne hain", text: money(value) };
+      return { tone: "dene", label: "Dene hain", text: money(Math.abs(value)) };
     }
 
     function askDelete(path, body) {
       pendingDelete = { path, body };
       confirmBox.style.display = "block";
+      syncScrim();
     }
 
     document.getElementById("confirm-no").addEventListener("click", () => {
       pendingDelete = null;
       confirmBox.style.display = "none";
+      syncScrim();
     });
     document.getElementById("confirm-yes").addEventListener("click", async () => {
       const job = pendingDelete;
       pendingDelete = null;
       confirmBox.style.display = "none";
+      syncScrim();
       if (!job) return;
       try {
         await api(job.path, Object.assign({ confirm: true }, job.body));
@@ -781,7 +994,15 @@
 
     function money(n) {
       const value = Math.round(Number(n) || 0);
-      return "Rs " + value;
+      const sign = value < 0 ? "-" : "";
+      const text = String(Math.abs(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+      return "Rs " + sign + text;
+    }
+
+    function shownNote(line) {
+      const raw = String((line && line.note) || "").trim();
+      if (!raw || /^(manual|web|whatsapp|screen)\b/i.test(raw)) return (line && line.label) || "";
+      return raw;
     }
 
     async function renderAaj() {
@@ -957,15 +1178,13 @@
         status.textContent = "";
         const card = el("div", null, "card");
         card.appendChild(el("h2", data.name));
-        const signed = kind === "supplier" ? -(Number(data.balance) || 0) : (Number(data.balance) || 0);
-        const view = Math.abs(signed) < 0.001 ? "zero" : (signed > 0 ? "milne" : "dene");
-        const label = view === "milne" ? "Milne hain" : view === "dene" ? "Dene hain" : "";
-        card.appendChild(el("p", (label ? label + " " : "") + money(Math.abs(signed)), view));
+        const head = balanceView(signedAmount(kind, data));
+        card.appendChild(el("p", (head.label ? head.label + " " : "") + head.text, head.tone + " tot"));
         const actions = el("div", null, "choice");
         const edit = el("button", "Badlein");
         edit.type = "button";
         edit.addEventListener("click", () => openEditor(kind === "bank" ? "supplier" : kind, { id: data.id, name: data.name, kind: kind }));
-        const archive = el("button", "Archive");
+          const archive = el("button", "Chhupa dein");
         archive.type = "button";
         archive.addEventListener("click", async () => {
           await api("party", { op: "archive", kind: kind, name: data.name, id: data.id });
@@ -992,7 +1211,7 @@
           card.appendChild(fixed);
         }
         if (kind === "supplier") {
-          const set = el("button", "Balance badlein");
+          const set = el("button", "Baqi badlein");
           set.type = "button";
           set.className = "secondary";
           set.addEventListener("click", async () => {
@@ -1005,33 +1224,41 @@
         }
         const table = document.createElement("table");
         table.className = "khata";
-        table.innerHTML = "<thead><tr><th>Tareekh</th><th>Note</th><th>Diye</th><th>Liye</th><th>Baqi</th></tr></thead>";
+        table.innerHTML = "<thead><tr><th>Tareekh</th><th>Yad</th><th>Diye</th><th>Liye</th><th>Baqi</th></tr></thead>";
         const body = document.createElement("tbody");
         for (const line of data.lines || []) {
           const tr = document.createElement("tr");
-          const cells = [line.when || line.date || line.label, line.note || line.label || "", line.diye ? money(line.diye) : "", line.liye ? money(line.liye) : "", money(line.balance)];
+          const baqi = balanceView(signedAmount(kind, line));
+          const cells = [line.when || line.date || line.label, shownNote(line), line.diye ? money(line.diye) : "", line.liye ? money(line.liye) : ""];
           for (const text of cells) {
             const td = document.createElement("td");
             td.textContent = text;
             tr.appendChild(td);
           }
+          const baqiCell = document.createElement("td");
+          baqiCell.className = baqi.tone;
+          if (baqi.label) baqiCell.appendChild(el("span", baqi.label, "baqi-label"));
+          baqiCell.appendChild(el("strong", baqi.text));
+          tr.appendChild(baqiCell);
           if (line.id && line.kind !== "opening") {
             tr.addEventListener("click", () => openEditor(line.kind === "bank" ? "supplier" : (line.kind || kind), { id: line.id, kind: line.kind || kind, name: data.name }));
           }
           body.appendChild(tr);
         }
         table.appendChild(body);
-        card.appendChild(table);
+        const wrap = el("div", null, "table-wrap");
+        wrap.appendChild(table);
+        card.appendChild(wrap);
         root.appendChild(card);
         const form = el("form", null, "card");
         const amount = input("number", "Raqam");
-        const note = input("text", "Note");
+        const note = input("text", "Yad");
         const date = input("date", "");
         const photo = document.createElement("input");
         photo.type = "file";
         photo.accept = "image/*";
         form.appendChild(field("Raqam", amount));
-        form.appendChild(field("Note", note));
+        form.appendChild(field("Yad", note));
         form.appendChild(field("Tareekh", date));
         form.appendChild(field("Photo, agar chahiye", photo));
         const choice = el("div", null, "choice");
@@ -1114,6 +1341,7 @@
         summary.appendChild(give);
         summary.appendChild(get);
         box.appendChild(summary);
+        box.appendChild(el("p", "Laal mein milne hain. Hare mein dene hain.", "legend"));
         const hide = el("button", hideMoney ? "Balance dikhayein" : "Balance chhupayein");
         hide.type = "button";
         hide.className = "secondary";
@@ -1123,7 +1351,7 @@
           renderParty();
         });
         box.appendChild(hide);
-        const tools = el("div", null, "choice");
+        const tools = el("div", null, "choice tools");
         const search = input("text", "Naam dhoondein");
         search.value = partyQuery;
         const find = el("button", "Dhoondein");
@@ -1136,7 +1364,7 @@
           partyFilter = order[(order.indexOf(partyFilter) + 1) % order.length];
           renderParty();
         });
-        const pdf = el("button", "PDF");
+        const pdf = el("button", "Parchi");
         pdf.type = "button";
         pdf.addEventListener("click", async () => {
           const file = await api("party.pdf");
@@ -1164,6 +1392,12 @@
         });
         const noun = partyTab === "supplier" ? "Supplier" : partyTab === "bank" ? "Bank" : partyTab === "all" ? "Party" : "Grahak";
         box.appendChild(el("p", rows.length + " " + noun + (partyFilter === "sab" ? "" : " · " + partyFilter), "muted"));
+        if (!rows.length) {
+          const blank = el("div", null, "empty");
+          blank.appendChild(el("strong", "Koi party nahi"));
+          blank.appendChild(el("p", "Naya naam likhein, phir us ka hisaab yahin dikhega."));
+          box.appendChild(blank);
+        }
         for (const row of rows) {
           const button = el("button", "");
           button.type = "button";
@@ -1172,7 +1406,7 @@
           const text = el("span", null, "grow");
           text.appendChild(el("strong", row.name));
           text.appendChild(el("span", row.when || "Abhi koi entry nahi", "muted"));
-          const bal = el("span", row.tone === "zero" ? "Rs 0" : money(row.show_amount), row.tone);
+          const bal = el("span", row.tone === "zero" ? "Rs 0" : money(row.show_amount), row.tone + " party-bal");
           if (row.side) bal.appendChild(el("span", row.side, "muted"));
           button.appendChild(face);
           button.appendChild(text);
@@ -1246,9 +1480,9 @@
         const quick = el("div", null, "card");
         quick.appendChild(el("h2", "Kharcha"));
         const amount = input("number", "Raqam");
-        const note = input("text", "Note, agar chahiye");
+        const note = input("text", "Yad, agar chahiye");
         quick.appendChild(field("Raqam", amount));
-        quick.appendChild(field("Note", note));
+        quick.appendChild(field("Yad", note));
         const choice = el("div", null, "choice");
         for (const item of [["labor", "Mazdoori"], ["salary", "Tankhwah"], ["kharcha", "Aur kharcha"]]) {
           const button = el("button", item[1]);
@@ -1320,6 +1554,8 @@
         const month = el("button", "Is mahine");
         week.type = "button";
         month.type = "button";
+        week.className = (range || "week") === "week" ? "on" : "";
+        month.className = range === "month" ? "on" : "";
         week.addEventListener("click", () => renderHisaab("week"));
         month.addEventListener("click", () => renderHisaab("month"));
         choice.appendChild(week);
@@ -1330,7 +1566,7 @@
         likhein.className = "big";
         likhein.addEventListener("click", () => openEditor("expense"));
         root.appendChild(likhein);
-        const card = el("div", null, "card");
+        const card = el("div", null, "card stats");
         card.appendChild(el("h2", data.range === "month" ? "Is mahine" : "Is hafte"));
         card.appendChild(el("p", "Doodh " + data.milk_litres + " L", "tot"));
         card.appendChild(el("p", "Becha " + data.sold_litres + " L · " + money(data.sales_amount), "tot"));
@@ -1486,12 +1722,12 @@
           milk: [["names", "Gay", data.cows], ["select", "Waqt", [["am", "Subah"], ["pm", "Shaam"]]], ["number", "Litre"], ["date", "Tareekh"]],
           sale: [["names", "Grahak", customers], ["number", "Litre"], ["number", "Rate"], ["select", "Paise", [["udhaar", "Udhaar"], ["nagd", "Nagd"]]], ["date", "Tareekh"]],
           payment: [["names", "Grahak", customers], ["number", "Raqam"], ["date", "Tareekh"]],
-          customer_adjust: [["names", "Grahak", customers], ["select", "Kisam", [["debit", "Jama / udhaar"], ["credit", "Credit"]]], ["number", "Raqam"], ["text", "Note"], ["date", "Tareekh"]],
+          customer_adjust: [["names", "Grahak", customers], ["select", "Kisam", [["debit", "Jama / udhaar"], ["credit", "Credit"]]], ["number", "Raqam"], ["text", "Yad"], ["date", "Tareekh"]],
           fodder: [["text", "Cheez"], ["names", "Supplier", suppliers], ["number", "Wazan"], ["text", "Unit"], ["number", "Qeemat"], ["number", "Nagd"], ["date", "Tareekh"]],
-          supplier_payment: [["names", "Supplier", suppliers], ["number", "Raqam"], ["text", "Note"], ["date", "Tareekh"]],
-          supplier_adjust: [["names", "Supplier", suppliers], ["number", "Raqam"], ["text", "Note"], ["date", "Tareekh"]],
-          expense: [["select", "Kisam", [["labor", "Mazdoori"], ["salary", "Tankhwah"], ["electricity", "Bijli"], ["fuel", "Fuel"], ["medicine", "Dawai"], ["transport", "Kiraya"], ["repairs", "Marammat"], ["kharcha", "Aur kharcha"]]], ["number", "Raqam"], ["text", "Note"], ["date", "Tareekh"]],
-          committee_log: [["names", "Committee", data.committees], ["select", "Halat", [["paid", "Ada diya"], ["not_paid", "Reh gaya"]]], ["number", "Raqam"], ["text", "Note"], ["date", "Tareekh"]],
+          supplier_payment: [["names", "Supplier", suppliers], ["number", "Raqam"], ["text", "Yad"], ["date", "Tareekh"]],
+          supplier_adjust: [["names", "Supplier", suppliers], ["number", "Raqam"], ["text", "Yad"], ["date", "Tareekh"]],
+          expense: [["select", "Kisam", [["labor", "Mazdoori"], ["salary", "Tankhwah"], ["electricity", "Bijli"], ["fuel", "Fuel"], ["medicine", "Dawai"], ["transport", "Kiraya"], ["repairs", "Marammat"], ["kharcha", "Aur kharcha"]]], ["number", "Raqam"], ["text", "Yad"], ["date", "Tareekh"]],
+          committee_log: [["names", "Committee", data.committees], ["select", "Halat", [["paid", "Ada diya"], ["not_paid", "Reh gaya"]]], ["number", "Raqam"], ["text", "Yad"], ["date", "Tareekh"]],
           committee: [["text", "Naam"], ["number", "Raqam"], ["select", "Waqt", [["daily", "Roz"], ["weekly", "Hafte"], ["monthly", "Mahine"]]], ["date", "Shuru"]],
           animal: [["names", "Janwar", data.cows], ["select", "Wajah", [["health", "Sehat"], ["vet_visit", "Doctor"], ["breeding", "Nasl"], ["insemination", "Insemination"], ["calving", "Bachcha"]]], ["text", "Tafseel"], ["text", "Doctor"], ["number", "Kharcha"], ["date", "Tareekh"]],
           feed: [["text", "Cheez"], ["number", "Wazan"], ["text", "Unit"], ["number", "Roz kitna"], ["date", "Tareekh"]],
@@ -1528,8 +1764,11 @@
           const node = control(spec, preset);
           if (chosen === "sale" && spec[1] === "Rate" && !(current && current.rate_pkr)) {
             const grahak = nodes[0];
-            const fill = () => { if (!node.value) node.value = rateFor(grahak.value); };
-            if (grahak) grahak.addEventListener("change", fill);
+            const fill = () => { if (!node.value) node.value = rateFor(grahak.value) || rememberedRate(grahak.value); };
+            if (grahak) {
+              grahak.addEventListener("change", fill);
+              fill();
+            }
           }
           put(box, spec[1], node);
           nodes.push(node);
@@ -1555,6 +1794,7 @@
           if (chosen === "supplier") Object.assign(payload, { name: read(0), opening_balance: read(1), date: read(2), previous_name: current && current.name || "" });
           try {
             await api("manual", payload);
+            if (chosen === "sale") rememberRate(read(0), read(2));
             status.textContent = "Mehfooz ho gaya.";
             draw();
           } catch (err) { status.textContent = err.message; }
@@ -1583,9 +1823,11 @@
         status.textContent = "";
         const card = el("div", null, "card");
         card.appendChild(el("h2", data.name + " ka khata"));
-        card.appendChild(el("p", "Baqi " + money(data.balance), "tot"));
+        const head = balanceView(signedAmount(kind, data));
+        card.appendChild(el("p", (head.label ? head.label + " " : "") + head.text, head.tone + " tot"));
         for (const line of data.lines || []) {
-          const text = (line.date ? line.date + " " : "") + line.label + " " + (line.debit ? "jama " + money(line.debit) : "") + (line.credit ? "wasool " + money(line.credit) : "") + " baqi " + money(line.balance);
+          const baqi = balanceView(signedAmount(kind, line));
+          const text = (line.date ? line.date + " " : "") + line.label + " " + (line.debit ? "jama " + money(line.debit) : "") + (line.credit ? "wasool " + money(line.credit) : "") + " " + (baqi.label ? baqi.label + " " : "") + baqi.text;
           const button = el("button", text);
           button.type = "button";
           button.className = "secondary line-btn";
@@ -1599,10 +1841,10 @@
         const form = el("form", null, "card");
         form.appendChild(el("h2", "Hisaab badlein"));
         const amount = input("number", "Raqam");
-        const note = input("text", "Note");
+        const note = input("text", "Yad");
         const date = input("date", "");
         form.appendChild(field("Raqam", amount));
-        form.appendChild(field("Note", note));
+        form.appendChild(field("Yad", note));
         form.appendChild(field("Tareekh", date));
         const choice = el("div", null, "choice");
         const debit = el("button", kind === "supplier" ? "Jama" : "Udhaar");
@@ -1671,11 +1913,11 @@
         const form = el("form", null, "card");
         form.appendChild(el("h2", "Tareekh"));
         const account = input("text", "Grahak ya supplier");
-        const record = input("text", "Record id");
+        const record = input("text", "Pehchan");
         account.value = query.account || "";
         record.value = query.record || "";
         form.appendChild(field("Hisab", account));
-        form.appendChild(field("Record", record));
+        form.appendChild(field("Pehchan", record));
         const go = el("button", "Dekhein");
         go.type = "submit";
         go.className = "big";
@@ -1685,14 +1927,27 @@
           renderTareekh({ account: account.value, record: record.value });
         });
         root.appendChild(form);
-        if (!(data.events || []).length) root.appendChild(el("p", "Abhi koi tabdeeli nahi.", "hint"));
+        if (!(data.events || []).length) {
+          const blank = el("div", null, "empty");
+          blank.appendChild(el("strong", "Abhi koi tabdeeli nahi"));
+          blank.appendChild(el("p", "Jo record badlein ya hatayein, woh yahan aayega."));
+          root.appendChild(blank);
+        }
         for (const event of data.events || []) {
           const card = el("div", null, "card");
-          const who = (event.new_values && (event.new_values.customer || event.new_values.name || event.new_values.supplier || event.new_values.cow_name))
-            || (event.old_values && (event.old_values.customer || event.old_values.name || event.old_values.supplier || event.old_values.cow_name))
-            || event.table;
-          card.appendChild(el("h2", event.action + " " + who));
-          card.appendChild(el("p", String(event.at || "").slice(0, 16) + " " + event.source, "muted"));
+          const values = event.new_values || event.old_values || {};
+          const who = values.customer || values.name || values.supplier || values.cow_name || values.cow || values.item || values.category || event.table;
+          const actionWord = { create: "Naya", update: "Badla", delete: "Hataya" }[event.action] || event.action;
+          const tableWord = {
+            feed_stock: "chara stock", fodder_purchases: "chara", expenses: "kharcha",
+            milk_records: "doodh", sales: "farokht", payments: "wasooli", customers: "grahak", cows: "janwar",
+            committee_log: "committee", committees: "committee", animal_events: "janwar"
+          }[event.table] || "";
+          const nameWords = { labor: "mazdoori", salary: "tankhwah", electricity: "bijli", fuel: "fuel", medicine: "dawai", transport: "kiraya", repairs: "marammat" };
+          const titleName = nameWords[who] || (who && who !== event.table ? who : tableWord || who);
+          card.appendChild(el("h2", actionWord + " " + titleName));
+          const when = event.at ? new Date(event.at).toLocaleString("en-GB", { timeZone: "Asia/Karachi", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+          card.appendChild(el("p", when, "muted"));
           if (event.recoverable) {
             const back = el("button", "Wapas layein");
             back.type = "button";
@@ -1737,6 +1992,21 @@
       button.addEventListener("click", () => showTab(button.dataset.tab));
     }
     showTab((location.hash || "#bolein").slice(1));
+    for (const id of ["plus-menu", "editor", "ledger-view"]) {
+      const node = document.getElementById(id);
+      if (node) new MutationObserver(syncScrim).observe(node, { attributes: true, attributeFilter: ["hidden"] });
+    }
+    document.getElementById("scrim").addEventListener("click", () => {
+      const plus = document.getElementById("plus-menu");
+      const editor = document.getElementById("editor");
+      const ledger = document.getElementById("ledger-view");
+      if (plus) plus.hidden = true;
+      if (editor) editor.hidden = true;
+      if (ledger) ledger.hidden = true;
+      pendingDelete = null;
+      confirmBox.style.display = "none";
+      syncScrim();
+    });
 
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/recorder/sw.js", { scope: "/r/" }).catch(() => {});
