@@ -114,6 +114,10 @@ async function main() {
   assert.ok(page.body.includes("Tareekh"));
   assert.ok(page.body.includes(">Bolein<"));
   assert.ok(!page.body.includes("🎤"));
+  assert.ok(
+    /\.chat-pane\[hidden\]\s*\{[^}]*display:\s*none\s*!important/.test(page.body),
+    "chat pane must stay hidden when another tab is open"
+  );
 
   const milk = await request(server, "POST", base + "/api/manual", {
     kind: "milk",
@@ -246,6 +250,14 @@ async function main() {
   const supplier = await request(server, "GET", base + "/api/ledger?kind=supplier&name=Raza");
   assert.strictEqual(supplier.status, 200, supplier.body);
   assert.strictEqual(supplier.json.balance, 440);
+  const razaList = await request(server, "GET", base + "/api/party");
+  const raza = razaList.json.suppliers.find((row) => row.name === "Raza");
+  assert.strictEqual(raza.balance, -440);
+  assert.strictEqual(raza.side, "Dene hain");
+  assert.strictEqual(supplier.json.signed_balance, raza.balance);
+  const lastBaqi = supplier.json.lines[supplier.json.lines.length - 1];
+  assert.strictEqual(lastBaqi.signed_balance, raza.balance);
+  assert.ok(lastBaqi.signed_balance < 0, "supplier ledger baqi uses the same sign as the party list");
   const khata = await request(server, "GET", base + "/api/khata");
   assert.strictEqual(khata.json.suppliers.find((row) => row.name === "Raza").balance_owed, 440);
 
@@ -392,6 +404,77 @@ async function main() {
   assert.ok(String(fresh.json.thread_id || "").startsWith("chat:"));
   const found = await request(server, "GET", base + "/api/chat?threads=1&q=chai");
   assert.ok((found.json.threads || []).some((row) => String(row.thread_id).indexOf(today) >= 0));
+
+  const bought = await request(server, "POST", base + "/api/manual", {
+    kind: "fodder",
+    item: "silage",
+    supplier: "Sadiq",
+    quantity: 6,
+    unit: "kg",
+    cost_pkr: 900,
+    cash_paid: 0,
+    date: today,
+  });
+  assert.strictEqual(bought.status, 200, bought.body);
+  const more = await request(server, "POST", base + "/api/manual", {
+    kind: "fodder",
+    item: "silage",
+    supplier: "Sadiq",
+    quantity: 2,
+    unit: "kg",
+    cost_pkr: 200,
+    cash_paid: 200,
+    date: today,
+  });
+  assert.strictEqual(more.status, 200, more.body);
+  const stockOn = await request(server, "GET", base + "/api/manual?kind=feed");
+  const silage = (stockOn.json.records || []).find((row) => String(row.item).toLowerCase() === "silage");
+  assert.ok(silage, "fodder purchase inserts feed stock");
+  assert.strictEqual(silage.quantity, 8);
+  const silageRows = bought.json.records.filter((row) => row.kind === "fodder" && row.supplier === "Sadiq" && row.quantity === 6);
+  assert.strictEqual(silageRows.length, 1);
+  const silageId = silageRows[0].id;
+  const blockedStock = await request(server, "POST", base + "/api/manual", { op: "delete", kind: "fodder", id: silageId });
+  assert.strictEqual(blockedStock.status, 400);
+  const stillStock = await request(server, "GET", base + "/api/manual?kind=feed");
+  assert.strictEqual(stillStock.json.records.find((row) => String(row.item).toLowerCase() === "silage").quantity, 8);
+  const editedStock = await request(server, "POST", base + "/api/manual", {
+    kind: "fodder",
+    id: silageId,
+    item: "khal",
+    supplier: "Sadiq",
+    quantity: 4,
+    unit: "kg",
+    cost_pkr: 900,
+    cash_paid: 0,
+    date: today,
+  });
+  assert.strictEqual(editedStock.status, 200, editedStock.body);
+  const afterEditStock = await request(server, "GET", base + "/api/manual?kind=feed");
+  assert.strictEqual(afterEditStock.json.records.find((row) => String(row.item).toLowerCase() === "silage").quantity, 2);
+  assert.strictEqual(afterEditStock.json.records.find((row) => String(row.item).toLowerCase() === "khal").quantity, 4);
+  const removedStock = await request(server, "POST", base + "/api/manual", {
+    op: "delete",
+    kind: "fodder",
+    id: silageId,
+    confirm: true,
+  });
+  assert.strictEqual(removedStock.status, 200, removedStock.body);
+  const afterDeleteStock = await request(server, "GET", base + "/api/manual?kind=feed");
+  assert.ok(!(afterDeleteStock.json.records || []).some((row) => String(row.item).toLowerCase() === "khal"));
+  assert.strictEqual(afterDeleteStock.json.records.find((row) => String(row.item).toLowerCase() === "silage").quantity, 2);
+  const leftBuy = (await request(server, "GET", base + "/api/manual?kind=fodder")).json.records.find((row) => row.supplier === "Sadiq" && row.item === "silage");
+  assert.ok(leftBuy && leftBuy.id);
+  const cleared = await request(server, "POST", base + "/api/manual", {
+    op: "delete",
+    kind: "fodder",
+    id: leftBuy.id,
+    confirm: true,
+  });
+  assert.strictEqual(cleared.status, 200, cleared.body);
+  const emptyStock = await request(server, "GET", base + "/api/manual?kind=feed");
+  assert.ok(!(emptyStock.json.records || []).some((row) => String(row.item).toLowerCase() === "silage"));
+  assert.ok(!(emptyStock.json.records || []).some((row) => String(row.item).toLowerCase() === "khal"));
 
   const historySql = fs.readFileSync(path.join(migrationsDir, "20261120120000_record_history.sql"), "utf8");
   assert.ok(/create table public\.chat_messages/i.test(historySql));
