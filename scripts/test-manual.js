@@ -517,6 +517,7 @@ async function main() {
   assert.ok(page.body.includes('op: "add_day"'));
   assert.ok(page.body.includes('chipPicker([["am", "Subah"], ["pm", "Shaam"]], "am"'));
   assert.ok(page.body.includes("calc(148px + env(safe-area-inset-bottom))"));
+  assert.ok(page.body.includes("scroll-margin-bottom: calc(96px + env(safe-area-inset-bottom))"));
   assert.ok(page.body.includes("openMilkSheet({ cow_name: cow.name, session: \"am\" })"));
   assert.ok(page.body.includes('milk: [["select", "Waqt", [["am", "Subah"], ["pm", "Shaam"]]]'));
   assert.ok(!page.body.includes('["day", "Poora din"]'));
@@ -732,6 +733,43 @@ async function main() {
   assert.ok(gori, cows.body);
   assert.strictEqual(gori.subah, 11);
   assert.strictEqual((gori.rows || []).length, 1);
+
+  const bookFarm = await seed(sheets, "923200000777", "Naab");
+  const bookBase = `/r/${bookFarm.token}`;
+  assert.strictEqual((await sheets.commitRecords({
+    sender: bookFarm.phone,
+    sheetId: bookFarm.sheetId,
+    sourceNote: "Web " + bookFarm.phone,
+    entries: [
+      { type: "sale", date: today, customer: "Pakistan hotel", litres: 13, rate_pkr: 200, amount: 2600, cash_received: 0, balance_added: 2600 },
+      { type: "sale", date: today, customer: "Pakistan hotel", litres: 6, rate_pkr: 200, amount: 1200, cash_received: 0, balance_added: 1200, note: "WhatsApp " + bookFarm.phone },
+      { type: "sale", date: today, customer: "Pakistan hotel", litres: 4, rate_pkr: 200, amount: 800, cash_received: 0, balance_added: 800, note: "Web " + bookFarm.phone + "; session=am" },
+    ],
+  })).ok, true);
+  const keptOld = (rows) => rows.filter((row) => row.customer === "Pakistan hotel" && (row.litres === 13 || row.litres === 6 || row.litres === 4));
+  const firstAaj = await request(server, "POST", bookBase + "/api/aaj", {
+    op: "add_day",
+    session: "am",
+    litres: 40,
+    sales: [{ customer: "Pakistan hotel", litres: 10, rate_pkr: 200 }],
+  });
+  assert.strictEqual(firstAaj.status, 200, firstAaj.body);
+  assert.strictEqual(keptOld(firstAaj.json.sales).length, 3, firstAaj.body);
+  assert.ok(firstAaj.json.sales.some((row) => row.litres === 13 && row.amount === 2600));
+  assert.ok(firstAaj.json.sales.some((row) => row.litres === 10));
+  assert.strictEqual(firstAaj.json.sold_litres, 33);
+  const secondAaj = await request(server, "POST", bookBase + "/api/aaj", {
+    op: "add_day",
+    session: "am",
+    litres: 40,
+    sales: [{ customer: "Pakistan hotel", litres: 9, rate_pkr: 200 }],
+  });
+  assert.strictEqual(secondAaj.status, 200, secondAaj.body);
+  assert.strictEqual(keptOld(secondAaj.json.sales).length, 3, "untagged and chat sales stay after a second Aaj save");
+  assert.ok(secondAaj.json.sales.some((row) => row.litres === 13 && row.amount === 2600));
+  assert.ok(secondAaj.json.sales.some((row) => row.litres === 9 && row.amount === 1800));
+  assert.strictEqual(secondAaj.json.sales.filter((row) => row.customer === "Pakistan hotel").length, 4);
+  assert.strictEqual(secondAaj.json.sold_litres, 32);
 
   const historySql = fs.readFileSync(path.join(migrationsDir, "20261120120000_record_history.sql"), "utf8");
   assert.ok(/create table public\.chat_messages/i.test(historySql));
