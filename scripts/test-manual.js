@@ -118,6 +118,11 @@ async function main() {
     /\.chat-pane\[hidden\]\s*\{[^}]*display:\s*none\s*!important/.test(page.body),
     "chat pane must stay hidden when another tab is open"
   );
+  assert.ok(
+    /\.party-row > span\.avatar\s*\{[^}]*display:\s*flex/.test(page.body),
+    "avatar initials stay centred inside the circle"
+  );
+  assert.ok(!/\.party-row strong,\s*\.party-row span\s*\{[^}]*display:\s*block/.test(page.body));
 
   const milk = await request(server, "POST", base + "/api/manual", {
     kind: "milk",
