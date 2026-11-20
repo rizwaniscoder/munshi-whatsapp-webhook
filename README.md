@@ -25,7 +25,8 @@ Set these on the host. Do not commit secrets.
 - `GEMINI_API_KEY` - Gemini API key
 - `GEMINI_MODEL` - default `gemini-3.5-flash-lite`
 - `REPLY_SCRIPT` - set `roman` so farmer-facing text stays Roman Urdu
-- `ALLOWED_NUMBERS` - comma-separated allowlist; empty means allow all (test phase)
+- `ALLOWED_NUMBERS` - comma-separated extra allowlist. Empty does not mean allow everyone. A number that is not an allowed farmer in the registry, and not on this list, gets the invite reply and is not created.
+- `MASTER_PHONE` - optional. Leave it unset. There is no built-in master number. The old test number `923155506704` is not privileged and a message from it does not recreate a farmer or open the template ledger. Supabase is the ledger. The template `SHEET_ID` is not a farm book.
 - `SUPABASE_URL` - Supabase project URL. When this is set, Postgres replaces Sheets for every read and write.
 - `SUPABASE_SERVICE_ROLE_KEY` - service-role key. Required when `SUPABASE_URL` is set. Server only. Never put it in the browser, a log, or git.
 - `SHEETS_WEBHOOK_URL` - deployed Apps Script web app URL. Used when `SUPABASE_URL` is unset, and by the one-shot sheet import. `SHEETS_URL` is an alias.
@@ -56,7 +57,7 @@ node scripts/mint-recorder-links.js --remote
 
 ```bash
 curl -s -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json" \
-  -d '{"phones":["923155506704","923205506704"]}' \
+  -d '{"phones":["923205506704"]}' \
   https://munshi-whatsapp-webhook.onrender.com/admin/recorder-links
 ```
 
@@ -68,6 +69,8 @@ Apply the SQL files in `supabase/migrations/` in filename order. Do not skip one
 
 1. `supabase/migrations/20261117120000_munshi_tables.sql`
 2. `supabase/migrations/20261117120100_munshi_snapshot.sql`
+3. `supabase/migrations/20261119000000_fix_snapshot_delete_where.sql`
+4. `supabase/migrations/20261120120000_record_history.sql`
 
 Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` on the existing Render web service, keep `REPLY_SCRIPT=roman`, and redeploy. `GET /` still returns `ok`. If `SUPABASE_URL` is unset, the process keeps using Apps Script so the current deployment does not break. When both are set, Postgres wins.
 
@@ -91,7 +94,7 @@ node scripts/mint-recorder-links.js --remote
 
 ```bash
 curl -s -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json" \
-  -d '{"phones":["923155506704"]}' \
+  -d '{"phones":["923205506704"]}' \
   https://munshi-whatsapp-webhook.onrender.com/admin/recorder-links
 ```
 
@@ -99,21 +102,23 @@ The output contains secrets. Do not commit it or paste it into chat.
 
 ## Farmer web app
 
-`GET /r/<token>` is the installable page for one allowed farmer. Android Chrome is the target. Add it to the Home screen from the Chrome menu. The page is Roman Urdu, with large buttons and five tabs:
+`GET /r/<token>` is the installable page for one allowed farmer. Android Chrome is the target, including a 390px-wide phone. Add it to the Home screen from the Chrome menu. The page is Roman Urdu, with large buttons. Voice stays on Bolein. **Likhein** on every tab opens a form that does not call Gemini.
 
-- **Bolein** records a voice note or a typed line, then Haan / Nahi / Edit. Gemini parses the voice note. A confirmed entry is stored and shows up on the other tabs. The page does not send a WhatsApp message.
-- **Aaj** shows today's milk per cow and sold / unsold litres, and can add, edit, or delete those rows. Delete asks for confirmation.
-- **Grahak** lists customers, the balance they owe, and standing supply. Tap to record a payment.
-- **Khata** records expenses, including mazdoori and tankhwah, and shows supplier balances.
+- **Bolein** is a chat. The farmer's messages sit on the right and Munshi's on the left. A voice note shows `Maine yeh suna` with the transcript, then Haan / Nahi / Edit on the card. A saved entry is a receipt; tap it to open that record. The bottom bar has a text box, `+` for Doodh, Farokht, Wasooli, Kharcha, Chara, Udhaar/Jama, and Janwar, and a round Record button (tap or hold). One thread per day, plus Naya chat. Purani chats opens an older thread read-only and can be searched by date or name. The page loads the latest 50 messages.
+- **Aaj** shows today's milk per cow and sold / unsold litres. Rows open an edit form. Delete asks for confirmation.
+- **Grahak** and **Khata** share a Party list: Grahak, Supplier, Bank, and Sab. The card on top is Aap ne dene hain and Aap ko milne hain, with a hide-balance control, search, a filter, and a PDF. Archived parties sit in their own row. A party opens a ledger with Diye and Liye columns, a running balance, and Diye / Liye buttons (amount, date, note, optional photo). Edit, archive, and Tareekh are on that screen. Khata still has the expense form above the supplier list.
 - **Hisaab** shows this week and this month.
+- **Tareekh** is the recent change list. Filter by account or record. A deleted row can be brought back from there.
+
+Likhein covers milk (subah/shaam), sales (rate from the customer, nagd or udhaar), payments, customer jama/credit, fodder purchases, supplier payments, expenses, committee paid or missed, animal events, feed stock, and add/edit for cows, customers, and suppliers. Save and delete recompute the balances. Every create, update, and delete from Likhein, from a confirmed voice or web note, and from WhatsApp is appended to `record_history`. Bolein messages are appended to `chat_messages` (farmer phone, thread, role, text, and a jsonb payload). `save_ledger_snapshot` does not delete either table.
 
 Unknown tokens get a generic failure. A visit still updates `last_inbound_at`, so the 10:00 and 19:00 PKT reminders can see a fresh 24-hour window. Those reminder routes stay behind `CRON_SECRET`.
 
 ## Multi-tenant ledgers
 
-Each allowed WhatsApp number gets its own Google Sheet, copied from the template ledger. A `Farmers` tab on the master sheet (`SHEET_ID`) maps phone number, sheet id, name, farm name, onboarding state, and `allowed`. The existing test number `923155506704` is already registered to the current ledger.
+Each allowed WhatsApp number gets its own ledger. In Supabase that is the farmer row plus that farmer's cows, milk, sales, and the other tables. Naab Dairy (`923205506704`) is the live farm. The old test number `923155506704` was removed and is not a master. Do not set `MASTER_PHONE` to it. An inbound message from an unknown number, including that old number, gets the invite reply. It does not create a farmer and it does not open the template sheet.
 
-Unknown numbers are told the service is invite-only. To add a farmer, put their number in the `Farmers` tab with `allowed` = TRUE, or set `ALLOWED_NUMBERS` on Render (comma-separated, no plus sign). A new allowed number is walked through onboarding: name and farm, animals (cows and buffaloes), customers (or `skip`), then an optional saving committee (or `skip`). Every write is confirmed with Haan/Nahi first.
+To add a farmer, put their number in `farmers` with `allowed` = true, or set `ALLOWED_NUMBERS` on Render (comma-separated, no plus sign). A new allowed number is walked through onboarding: name and farm, animals (cows and buffaloes), customers (or `skip`), then an optional saving committee (or `skip`). Every write is confirmed with Haan/Nahi first. Onboarding copies a blank ledger. It does not attach `SHEET_ID`.
 
 Customer standing supply is `supply_type` and `daily_litres` on the Customers tab. `fixed` means that many litres every day, even when the bill is weekly or monthly ("2 liter, payment har mahine ki 2 tareekh ko" is 2 litres a day, billed on the 2nd). `flexible` is for hotels and similar buyers; a mentioned typical amount is stored as a note and `daily_litres` stays blank. If the farmer does not say, both stay blank. "Aslam rozana kitna leta hai?" is answered from those fields. Apps Script must be redeployed as a new version of the same web app before the live sheet will store the new columns. Do not change `SHEETS_SECRET`.
 

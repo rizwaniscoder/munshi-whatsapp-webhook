@@ -20,7 +20,6 @@
  * a new version of the same web app before minting recorder links.
  */
 var DEFAULT_SHEET_ID = "1sIDMkUs76cgl8ecBGIOWFIPiofGzwGJI1D3Az6OyDW8";
-var MASTER_PHONE = "923155506704";
 
 var migratedThisRequest_ = false;
 var masterMigratedThisRequest_ = false;
@@ -66,8 +65,16 @@ function masterSs_() {
   return SpreadsheetApp.openById(id || DEFAULT_SHEET_ID);
 }
 
+function masterPhone_() {
+  return normalizePhone_(PropertiesService.getScriptProperties().getProperty("MASTER_PHONE") || "");
+}
+
 function isMasterPhone_(phone) {
-  return normalizePhone_(phone) === MASTER_PHONE;
+  var master = masterPhone_();
+  if (!master) return false;
+  var normalized = normalizePhone_(phone);
+  if (!normalized) return false;
+  return normalized === master;
 }
 
 function isMasterSheetId_(id) {
@@ -79,19 +86,14 @@ function ledgerSs_(body) {
   var sender = normalizePhone_(body.sender || body.phone);
   var ss = null;
   if (body.sheetId) {
-    if (isMasterSheetId_(body.sheetId) && sender && !isMasterPhone_(sender)) {
+    if (isMasterSheetId_(body.sheetId)) {
       throw new Error("Ledger is number ke liye available nahi.");
     }
     ss = SpreadsheetApp.openById(body.sheetId);
   } else if (sender) {
     var farmer = findFarmerRow_(sender);
-    if (farmer && farmer.sheetId) {
-      if (isMasterSheetId_(farmer.sheetId) && !isMasterPhone_(sender)) {
-        throw new Error("Ledger is number ke liye available nahi.");
-      }
+    if (farmer && farmer.sheetId && !isMasterSheetId_(farmer.sheetId)) {
       ss = SpreadsheetApp.openById(farmer.sheetId);
-    } else if (isMasterPhone_(sender)) {
-      ss = masterSs_();
     } else {
       throw new Error("Farm ka ledger abhi tayyar nahi. Pehle onboarding mukammal karein.");
     }
@@ -1161,6 +1163,7 @@ function upsertFarmer_(body) {
   var farmName = body.farmName != null ? body.farmName : existing ? existing.farmName : "";
   var state = body.onboardingState != null ? body.onboardingState : existing ? existing.onboardingState : "pending_profile";
   var sheetId = body.sheetId != null ? body.sheetId : existing ? existing.sheetId : "";
+  if (!existing && isMasterSheetId_(sheetId)) sheetId = "";
   var created = existing ? existing.createdAt : nowStamp_();
   if (existing) {
     sh.getRange(existing.row, 1, 1, 7).setValues([[phone, sheetId, name, farmName, state, allowed, created]]);

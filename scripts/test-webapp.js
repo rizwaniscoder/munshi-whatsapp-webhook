@@ -97,6 +97,7 @@ async function main() {
     "20261117120000_munshi_tables.sql",
     "20261117120100_munshi_snapshot.sql",
     "20261119000000_fix_snapshot_delete_where.sql",
+    "20261120120000_record_history.sql",
   ]);
   const snapshotFix = fs.readFileSync(path.join(__dirname, "../supabase/migrations/20261119000000_fix_snapshot_delete_where.sql"), "utf8");
   assert.ok(/create or replace function public\.save_ledger_snapshot\(snapshot jsonb, expected_version bigint\)/i.test(snapshotFix));
@@ -115,7 +116,7 @@ async function main() {
     "farmers", "cows", "milk_records", "customers", "sales", "payments", "expenses",
     "fodder_purchases", "suppliers", "committees", "committee_log", "committee_status",
     "animal_events", "feed_stock", "due_bills", "upcoming_events", "reminders",
-    "pending_entries", "processed_messages", "last_writes", "ledger_meta",
+    "pending_entries", "processed_messages", "last_writes", "ledger_meta", "record_history",
   ]) {
     assert.ok(sql.includes(table), table);
   }
