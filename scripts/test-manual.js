@@ -516,6 +516,11 @@ async function main() {
   assert.ok(page.body.includes("Kul litre"));
   assert.ok(page.body.includes('op: "add_day"'));
   assert.ok(page.body.includes('chipPicker([["am", "Subah"], ["pm", "Shaam"]], "am"'));
+  assert.ok(page.body.includes("calc(148px + env(safe-area-inset-bottom))"));
+  assert.ok(page.body.includes("openMilkSheet({ cow_name: cow.name, session: \"am\" })"));
+  assert.ok(page.body.includes('milk: [["select", "Waqt", [["am", "Subah"], ["pm", "Shaam"]]]'));
+  assert.ok(!page.body.includes('["day", "Poora din"]'));
+  assert.ok(page.body.includes('pair[0] === "sale" && !(record && record.id)'));
   assert.ok(!page.body.includes("Gaye ke hisaab se (optional)"));
   assert.ok(!page.body.includes('el("h2", "Becha")'));
   assert.ok(page.body.includes("Zyada"));
@@ -672,6 +677,61 @@ async function main() {
   assert.strictEqual(rejected.status, 400);
   const afterBlock = await request(server, "GET", fixBase + "/api/aaj");
   assert.strictEqual(afterBlock.json.milk_litres, 22.5, "a rejected sale does not write the total");
+
+  const againFarm = await seed(sheets, "923200000666", "Karim");
+  const againBase = `/r/${againFarm.token}`;
+  const firstSale = await request(server, "POST", againBase + "/api/aaj", {
+    op: "add_day",
+    session: "am",
+    litres: 40,
+    sales: [{ customer: "Pakistan hotel", litres: 10, rate_pkr: 200 }],
+  });
+  assert.strictEqual(firstSale.status, 200, firstSale.body);
+  const secondSale = await request(server, "POST", againBase + "/api/aaj", {
+    op: "add_day",
+    session: "am",
+    litres: 40,
+    sales: [{ customer: "Pakistan hotel", litres: 12, rate_pkr: 200 }],
+  });
+  assert.strictEqual(secondSale.status, 200, secondSale.body);
+  assert.strictEqual(secondSale.json.sales.length, 1, "same customer and session updates the sale");
+  assert.strictEqual(secondSale.json.sales[0].litres, 12);
+  assert.strictEqual(secondSale.json.sold_litres, 12);
+  const eveningSale = await request(server, "POST", againBase + "/api/aaj", {
+    op: "add_day",
+    session: "pm",
+    litres: 15,
+    sales: [{ customer: "Pakistan hotel", litres: 5, rate_pkr: 200 }],
+  });
+  assert.strictEqual(eveningSale.status, 200, eveningSale.body);
+  assert.strictEqual(eveningSale.json.sales.length, 2, "shaam is a different session");
+  assert.strictEqual(eveningSale.json.sold_litres, 17);
+  const extraLine = await request(server, "POST", againBase + "/api/aaj", {
+    op: "add_day",
+    session: "am",
+    litres: 40,
+    sales: [
+      { customer: "Pakistan hotel", litres: 8, rate_pkr: 200 },
+      { customer: "Pakistan hotel", litres: 2, rate_pkr: 200 },
+    ],
+  });
+  assert.strictEqual(extraLine.status, 200, extraLine.body);
+  const morningHotel = extraLine.json.sales.filter((row) => row.customer === "Pakistan hotel");
+  assert.strictEqual(morningHotel.length, 3, "a second line in the same save is an extra sale");
+  assert.ok(morningHotel.some((row) => row.litres === 8));
+  assert.ok(morningHotel.some((row) => row.litres === 2));
+  assert.ok(morningHotel.some((row) => row.litres === 5));
+  assert.strictEqual((await request(server, "POST", againBase + "/api/aaj", {
+    op: "add", cow_name: "Gori", session: "am", litres: 8,
+  })).status, 200);
+  assert.strictEqual((await request(server, "POST", againBase + "/api/aaj", {
+    op: "add", cow_name: "Gori", session: "am", litres: 11,
+  })).status, 200);
+  const cows = await request(server, "GET", againBase + "/api/aaj");
+  const gori = cows.json.cows.find((row) => row.name === "Gori");
+  assert.ok(gori, cows.body);
+  assert.strictEqual(gori.subah, 11);
+  assert.strictEqual((gori.rows || []).length, 1);
 
   const historySql = fs.readFileSync(path.join(migrationsDir, "20261120120000_record_history.sql"), "utf8");
   assert.ok(/create table public\.chat_messages/i.test(historySql));
