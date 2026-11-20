@@ -643,7 +643,7 @@
         statusEl.textContent = "";
         showReplies(data.replies || []);
         if (data.thread_id) activeThread = data.thread_id;
-        paintThread();
+        await paintThread();
       } catch (err) {
         statusEl.textContent = "Internet nahi chal raha. Dubara koshish karein.";
         toast(statusEl.textContent, true);
@@ -764,7 +764,13 @@
         open.addEventListener("click", () => openReceipt(msg));
         bubble.appendChild(open);
       }
-      if (payload.kind === "confirm" && payload.state === "open" && !threadReadOnly) {
+      const confirmOpen = payload.kind === "confirm"
+        && (payload.actions || []).length
+        && payload.state !== "yes"
+        && payload.state !== "no"
+        && payload.state !== "edit"
+        && !threadReadOnly;
+      if (confirmOpen) {
         const row = el("div", null, "confirm-actions");
         for (const action of payload.actions || []) {
           const button = el("button", ACTION_LABELS[action.id] || action.label || "Haan");
@@ -834,7 +840,7 @@
       try {
         const data = await api("aaj");
         const sale = (data.sales || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
-        const wasool = (data.sales || []).reduce((sum, row) => sum + (Number(row.cash_received) || 0), 0);
+        const wasool = Number(data.wasool) || 0;
         slot.hidden = false;
         slot.textContent = "";
         const bits = [["Doodh", (data.milk_litres || 0) + " L"], ["Sale", money(sale)], ["Wasooli", money(wasool)]];
@@ -996,6 +1002,14 @@
 
     function askDelete(path, body) {
       pendingDelete = { path, body };
+      const restore = body && body.op === "restore";
+      const prompt = confirmBox.querySelector("p");
+      const yes = document.getElementById("confirm-yes");
+      if (prompt) prompt.textContent = restore ? "Wapas layein?" : "Pakka hatana hai?";
+      if (yes) {
+        yes.textContent = restore ? "Haan, wapas layein" : "Haan, hatayein";
+        yes.className = restore ? "big" : "danger";
+      }
       confirmBox.style.display = "block";
       syncScrim();
     }
@@ -1047,7 +1061,7 @@
         const data = await api("aaj");
         status.textContent = "";
         const saleTotal = (data.sales || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
-        const wasool = (data.sales || []).reduce((sum, row) => sum + (Number(row.cash_received) || 0), 0);
+        const wasool = Number(data.wasool) || 0;
         const card = el("div", null, "home-sum quad");
         for (const bit of [["Doodh", data.milk_litres + " L"], ["Sale", money(saleTotal)], ["Wasooli", money(wasool)], ["Bacha", data.unsold_litres + " L"]]) {
           const cell = el("div");
@@ -1672,7 +1686,7 @@
         if (data.sales_amount_missing > 0) {
           card.appendChild(el("p", data.sales_amount_missing + " entries ki raqam nahi", "muted"));
         }
-        card.appendChild(el("p", "Wasool " + money(data.payments), "tot"));
+        card.appendChild(el("p", "Wasool " + money(data.wasool != null ? data.wasool : data.payments), "tot"));
         card.appendChild(el("p", "Kharcha " + money(data.expenses + data.fodder_cost), "tot"));
         card.appendChild(el("p", "Grahak baqi " + money(data.customers_due), "tot"));
         root.appendChild(card);

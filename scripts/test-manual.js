@@ -122,6 +122,10 @@ async function main() {
     /\.party-row > span\.avatar\s*\{[^}]*display:\s*flex/.test(page.body),
     "avatar initials stay centred inside the circle"
   );
+  assert.ok(page.body.includes("Wapas layein?"));
+  assert.ok(page.body.includes("Haan, wapas layein"));
+  assert.ok(page.body.includes("Pakka hatana hai?"));
+  assert.ok(/body && body\.op === "restore"/.test(page.body));
   assert.ok(!/\.party-row strong,\s*\.party-row span\s*\{[^}]*display:\s*block/.test(page.body));
 
   const milk = await request(server, "POST", base + "/api/manual", {
@@ -480,6 +484,34 @@ async function main() {
   const emptyStock = await request(server, "GET", base + "/api/manual?kind=feed");
   assert.ok(!(emptyStock.json.records || []).some((row) => String(row.item).toLowerCase() === "silage"));
   assert.ok(!(emptyStock.json.records || []).some((row) => String(row.item).toLowerCase() === "khal"));
+
+  const quiet = `/r/${other.token}`;
+  assert.strictEqual((await request(server, "POST", quiet + "/api/manual", {
+    kind: "customer", name: "Sana", rate_pkr: 100, date: today,
+  })).status, 200);
+  assert.strictEqual((await request(server, "POST", quiet + "/api/manual", {
+    kind: "payment", customer: "Sana", amount: 50, date: today,
+  })).status, 200);
+  const aajWasool = await request(server, "GET", quiet + "/api/aaj");
+  assert.strictEqual(aajWasool.json.wasool, 50, aajWasool.body);
+  const weekWasool = await request(server, "GET", quiet + "/api/hisaab?range=week");
+  assert.strictEqual(weekWasool.json.wasool, 50, weekWasool.body);
+  assert.strictEqual((await request(server, "POST", quiet + "/api/manual", {
+    kind: "sale", customer: "Sana", litres: 1, rate_pkr: 20, pay: "nagd", date: today,
+  })).status, 200);
+  assert.strictEqual((await request(server, "GET", quiet + "/api/aaj")).json.wasool, 70);
+  assert.strictEqual((await request(server, "GET", quiet + "/api/hisaab?range=week")).json.wasool, 70);
+
+  const booked = await request(server, "POST", quiet + "/turn", { text: "aaj 500 mazdoori", thread: "day:" + today });
+  assert.strictEqual(booked.status, 200, booked.body);
+  assert.strictEqual(booked.json.replies[0].kind, "confirm");
+  const bookedChat = await request(server, "GET", quiet + "/api/chat?thread=day:" + today);
+  const farmerMsg = (bookedChat.json.messages || []).find((row) => row.role === "farmer");
+  const munshiMsg = [...(bookedChat.json.messages || [])].reverse().find((row) => row.payload && row.payload.kind === "confirm");
+  assert.ok(munshiMsg, "bookable line stores a confirm card");
+  assert.strictEqual(munshiMsg.payload.state, "open");
+  assert.deepStrictEqual((munshiMsg.payload.actions || []).map((action) => action.id), ["confirm_yes", "confirm_no", "confirm_edit"]);
+  assert.ok(farmerMsg && munshiMsg.created_at > farmerMsg.created_at, "confirm card sorts after the farmer line");
 
   const historySql = fs.readFileSync(path.join(migrationsDir, "20261120120000_record_history.sql"), "utf8");
   assert.ok(/create table public\.chat_messages/i.test(historySql));
