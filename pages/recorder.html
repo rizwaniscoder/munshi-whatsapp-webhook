@@ -16,18 +16,20 @@
     :root {
       color-scheme: light;
       --ink: #142018;
-      --muted: #3d4f45;
-      --paper: #f3f6f4;
+      --muted: #3e5148;
+      --paper: #f4f7f5;
       --card: #ffffff;
-      --green: #0f6b45;
+      --green: #0e7a4b;
       --green-dark: #0b4f34;
-      --green-soft: #e7f6ee;
-      --line: #d7e4db;
+      --green-soft: #e8f6ee;
+      --line: #e3ebe6;
       --danger: #b42318;
       --milne: #b42318;
       --dene: #067647;
-      --shadow: 0 8px 24px rgba(20, 40, 30, 0.06);
-      --nav: calc(64px + env(safe-area-inset-bottom));
+      --shadow: 0 1px 2px rgba(16, 32, 24, 0.06), 0 8px 24px rgba(16, 32, 24, 0.05);
+      --r: 16px;
+      --r-sm: 12px;
+      --space: 12px;
     }
     .chat-pane[hidden] { display: none !important; }
     section[hidden] { display: none !important; }
@@ -38,302 +40,292 @@
       font-family: system-ui, "Segoe UI", "Noto Sans", sans-serif;
       background: var(--paper);
       color: var(--ink);
-      font-size: 17px;
-      line-height: 1.4;
-      padding: calc(12px + env(safe-area-inset-top)) 14px calc(104px + env(safe-area-inset-bottom));
+      font-size: 16px;
+      line-height: 1.35;
+      padding: calc(8px + env(safe-area-inset-top)) 12px calc(92px + env(safe-area-inset-bottom));
     }
     main { max-width: 36rem; margin: 0 auto; }
-    button, input, select, textarea { font: inherit; }
+    button, input, select, textarea { font: inherit; color: inherit; }
     button { touch-action: manipulation; cursor: pointer; }
     :focus-visible { outline: 3px solid #86efac; outline-offset: 2px; }
-    .app-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
-    .app-head h1 { margin: 0; font-size: 1.45rem; line-height: 1.2; }
-    .eyebrow { margin: 0 0 2px; color: var(--green); font-size: 0.82rem; font-weight: 800; letter-spacing: 0.04em; }
-    .header-action {
-      min-height: 48px;
-      padding: 0 16px;
-      border: 0;
-      border-radius: 999px;
-      background: var(--green);
-      color: white;
-      font-weight: 800;
-    }
-    .hint, .legend { margin: 8px 2px 0; color: var(--muted); font-size: 0.95rem; }
-    .status { min-height: 1.2rem; margin: 8px 0 0; font-size: 1rem; font-weight: 700; color: var(--green-dark); }
-    #record.mic {
-      width: 56px; min-width: 56px; height: 56px; min-height: 56px;
-      margin: 0; padding: 0; border: 0; border-radius: 999px;
-      background: var(--green); color: white;
-      display: grid; place-items: center;
-    }
-    #record.mic svg { width: 26px; height: 26px; }
-    #record.mic .icon-stop, #record.mic[data-state="recording"] .icon-mic { display: none; }
-    #record.mic[data-state="recording"] .icon-stop { display: block; }
-    #record[data-state="recording"] { background: var(--danger); }
-    #record:disabled { opacity: 0.65; }
-    #reply {
-      margin-top: 14px;
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 1rem;
-      padding: 16px;
-      white-space: pre-wrap;
-      font-size: 1.15rem;
-      line-height: 1.45;
-    }
+    .app-head { padding: 4px 2px 8px; }
+    .app-head h1 { margin: 0; font-size: 1.25rem; line-height: 1.2; font-weight: 750; }
+    .eyebrow { margin: 0; color: var(--green); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+    .hint, .legend { margin: 6px 2px 0; color: var(--muted); font-size: 0.82rem; }
+    .status { min-height: 0; margin: 4px 0; font-size: 0.92rem; font-weight: 700; color: var(--green-dark); }
+    .status:empty { display: none; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+    #reply { margin-top: 8px; background: var(--card); border-radius: var(--r); padding: 12px; white-space: pre-wrap; }
     #reply:empty { display: none; }
-    #reply img { display: block; max-width: 100%; margin-top: 12px; border-radius: 0.6rem; }
-    .heard { margin: 0 0 10px; font-weight: 700; }
+    #reply img { display: block; max-width: 100%; margin-top: 8px; border-radius: 8px; }
+    .heard { margin: 0 0 8px; font-weight: 750; }
     #edit-box:empty { display: none; }
-    #actions, .row-actions, .choice { display: flex; gap: 8px; }
-    .choice, .row-actions { flex-wrap: wrap; }
-    #actions { display: none; margin-top: 12px; }
-    #actions button, .big, .choice button, .row-actions button, button.secondary, .chips button {
+    #actions { display: none; margin-top: 8px; gap: 8px; }
+    #actions[style*="flex"] { display: flex; }
+    .row-actions, .choice { display: flex; gap: 8px; flex-wrap: wrap; }
+    button.secondary, .big, .line-btn, #actions button, .row-actions button {
       min-height: 48px;
-      border-radius: 14px;
-      border: 1.5px solid var(--line);
-      background: white;
-      color: var(--green-dark);
-      font-size: 1.05rem;
+      border-radius: var(--r-sm);
       font-weight: 750;
+    }
+    button.secondary, .line-btn, .row-actions button, #actions button {
+      border: 0;
+      background: var(--green-soft);
+      color: var(--green-dark);
       padding: 0 14px;
     }
-    #actions button, .row-actions button, .choice button { flex: 1 1 7.5rem; }
-    #actions button[data-action="confirm_yes"] { background: var(--green); color: white; border-color: var(--green); }
-    button.secondary[aria-pressed="true"], .choice button.big { background: var(--green); color: white; border-color: var(--green); }
-    form.line, .stack { display: flex; gap: 8px; margin-top: 14px; }
+    .big { border: 0; background: var(--green); color: white; width: 100%; }
+    .choice .big, .chat-top button { width: auto; }
+    .choice > button:not(.pay) { flex: 1; min-height: 40px; border: 0; border-radius: 12px; background: var(--green-soft); color: var(--green-dark); font-weight: 750; font-size: 0.82rem; white-space: nowrap; padding: 0 8px; }
+    .row-actions button, .choice button.secondary { flex: 1; }
+    #actions button[data-action="confirm_yes"], button.secondary[aria-pressed="true"] { background: var(--green); color: white; }
+    .danger { background: var(--danger) !important; color: white !important; }
+    form.line, .stack { display: flex; gap: 8px; margin-top: 10px; }
     .stack { flex-direction: column; }
     input[type="text"], input[type="number"], input[type="date"], input[type="file"], select, textarea {
       width: 100%;
       min-height: 48px;
-      border-radius: 14px;
+      border-radius: var(--r-sm);
       border: 1.5px solid var(--line);
-      padding: 0 14px;
-      font-size: 17px;
+      padding: 0 12px;
+      font-size: 16px;
       background: white;
-      color: var(--ink);
     }
-    textarea { padding: 12px 14px; min-height: 96px; }
-    form.line button, .big, button.secondary { min-height: 48px; border-radius: 14px; font-weight: 750; }
-    .big {
-      border: 0;
-      background: var(--green);
-      color: white;
-    }
-    .big, button.secondary { width: 100%; }
-    .choice .big, .choice button.secondary, .chat-top .secondary { width: auto; }
-    form.line button { min-width: 6.5rem; width: auto; border: 0; background: var(--green); color: white; }
+    textarea { padding: 12px; min-height: 88px; }
+    input.num-lg { font-size: 1.7rem; font-weight: 750; min-height: 64px; letter-spacing: -0.02em; }
     .card {
       background: var(--card);
-      border: 0;
-      border-radius: 18px;
+      border-radius: var(--r);
       padding: 14px;
-      margin-top: 12px;
+      margin-top: 10px;
       box-shadow: var(--shadow);
     }
-    .card h2 { margin: 0 0 8px; font-size: 1.25rem; }
-    .muted { color: var(--muted); font-size: 0.95rem; }
-    .tot { font-size: 1.15rem; font-weight: 750; margin: 8px 0; background: var(--paper); border-radius: 12px; padding: 10px 12px; }
-    .empty {
-      text-align: center;
-      background: white;
-      border-radius: 18px;
-      padding: 22px 16px;
-      margin-top: 12px;
-      color: var(--muted);
-      box-shadow: var(--shadow);
-    }
-    .empty strong { display: block; color: var(--ink); font-size: 1.15rem; margin-bottom: 4px; }
-    .cow { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 1.15rem; }
+    .card h2 { margin: 0 0 8px; font-size: 1.05rem; }
+    .muted { color: var(--muted); font-size: 0.82rem; font-weight: 600; }
+    .tot { font-size: 1rem; font-weight: 750; margin: 0; padding: 8px 0; border-bottom: 1px solid var(--line); background: transparent; }
+    .tot:last-child { border-bottom: 0; }
+    .empty { text-align: center; background: white; border-radius: var(--r); padding: 22px 14px; margin-top: 10px; color: var(--muted); }
+    .empty strong { display: block; color: var(--ink); margin-bottom: 4px; }
+    .cow { display: flex; justify-content: space-between; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
     nav {
-      position: fixed;
-      left: 0; right: 0; bottom: 0;
-      display: grid;
-      grid-template-columns: repeat(6, minmax(0, 1fr));
-      gap: 2px;
-      padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
-      background: rgba(255, 255, 255, 0.96);
+      position: fixed; left: 0; right: 0; bottom: 0;
+      display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
+      padding: 2px 4px calc(4px + env(safe-area-inset-bottom));
+      background: rgba(255,255,255,.96);
       border-top: 1px solid var(--line);
       z-index: 20;
     }
     nav button {
-      min-height: 52px;
-      border: 0;
-      border-radius: 12px;
-      background: transparent;
-      color: var(--muted);
-      font-size: 0.68rem;
-      font-weight: 750;
-      padding: 4px 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 2px;
+      min-height: 52px; border: 0; border-radius: 10px; background: transparent;
+      color: var(--muted); font-size: 0.64rem; font-weight: 750;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 4px 0;
     }
     nav button svg { width: 22px; height: 22px; }
-    nav button[aria-current="page"] { background: var(--green-soft); color: var(--green-dark); }
+    nav button[aria-current="page"] { color: var(--green-dark); background: var(--green-soft); }
     .sheet {
-      position: fixed;
-      left: 0; right: 0; bottom: 0;
-      top: auto;
-      max-height: 92dvh;
-      z-index: 40;
-      background: var(--paper);
-      overflow: auto;
-      border-radius: 22px 22px 0 0;
-      padding: 18px 14px calc(18px + env(safe-area-inset-bottom));
+      position: fixed; left: 0; right: 0; bottom: 0; top: auto; max-height: 92dvh;
+      z-index: 40; background: var(--paper); overflow: auto;
+      border-radius: 20px 20px 0 0; padding: 14px 12px calc(16px + env(safe-area-inset-bottom));
       box-shadow: 0 -12px 40px rgba(16, 32, 24, 0.18);
     }
-    .sheet::before {
-      content: "";
-      display: block;
-      width: 42px;
-      height: 4px;
-      border-radius: 999px;
-      background: #c5d4cb;
-      margin: -6px auto 12px;
-    }
+    .sheet::before { content: ""; display: block; width: 36px; height: 4px; border-radius: 999px; background: #c9d5ce; margin: 0 auto 10px; }
     .sheet[hidden] { display: none !important; }
     #scrim { position: fixed; inset: 0; background: rgba(16, 32, 24, 0.45); z-index: 35; }
     #scrim[hidden] { display: none !important; }
     #toast {
-      position: fixed;
-      left: 14px; right: 14px;
-      top: calc(10px + env(safe-area-inset-top));
-      z-index: 80;
-      background: var(--green-dark);
-      color: white;
-      border-radius: 14px;
-      padding: 14px 16px;
-      font-weight: 750;
-      text-align: center;
-      box-shadow: var(--shadow);
+      position: fixed; left: 12px; right: 12px; top: calc(8px + env(safe-area-inset-top));
+      z-index: 80; background: var(--green-dark); color: white; border-radius: 14px;
+      padding: 12px 14px; font-weight: 750; text-align: center;
     }
     #toast.bad { background: var(--danger); }
     #toast[hidden] { display: none !important; }
-    .line-btn {
-      width: 100%;
-      text-align: left;
-      min-height: 3.6rem;
-      margin-top: 8px;
-    }
+    .line-btn { width: 100%; text-align: left; margin-top: 6px; }
     #confirm {
-      position: fixed;
-      left: 16px; right: 16px;
-      top: 50%;
-      bottom: auto;
-      transform: translateY(-50%);
-      z-index: 70;
-      background: white;
-      border: 0;
-      border-radius: 18px;
-      padding: 16px;
-      display: none;
-      box-shadow: 0 16px 40px rgba(16, 32, 24, 0.2);
+      position: fixed; left: 16px; right: 16px; top: 50%; transform: translateY(-50%);
+      z-index: 70; background: white; border-radius: 18px; padding: 16px; display: none;
+      box-shadow: 0 16px 40px rgba(16, 32, 24, 0.22);
     }
-    #confirm p { margin: 0 0 12px; font-size: 1.2rem; font-weight: 750; }
-    .danger { background: var(--danger) !important; color: white !important; border-color: var(--danger) !important; }
-    .chat-pane { display: flex; flex-direction: column; min-height: calc(100dvh - 168px); }
-    .chat-top { display: flex; gap: 8px; }
-    .chat-top button { flex: 1; min-height: 48px; }
-    .thread { flex: 1; overflow: auto; min-height: 180px; padding: 4px 0 8px; }
-    .bubble { max-width: 86%; margin-top: 8px; padding: 12px 14px; border-radius: 18px; font-size: 1.05rem; line-height: 1.4; white-space: pre-wrap; }
-    .bubble p { margin: 0 0 6px; }
-    .bubble button { min-height: 44px; margin-top: 6px; }
-    .mine { margin-left: auto; background: var(--green); color: white; border-bottom-right-radius: 6px; }
-    .theirs { margin-right: auto; background: white; border-bottom-left-radius: 6px; box-shadow: var(--shadow); }
-    .receipt { box-shadow: inset 0 0 0 1.5px #b7e0c8; }
-    .chips { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 8px; scrollbar-width: none; }
+    #confirm p { margin: 0 0 12px; font-size: 1.1rem; font-weight: 750; }
+    .chat-pane { display: flex; flex-direction: column; min-height: calc(100dvh - 132px); }
+    .chat-top { display: flex; gap: 14px; padding: 0 2px 4px; }
+    .chat-top button {
+      min-height: 36px; border: 0; background: transparent; color: var(--green-dark);
+      font-weight: 750; font-size: 0.92rem; padding: 0; width: auto;
+    }
+    .thread { flex: 1; overflow: auto; min-height: 120px; padding: 4px 0 8px; }
+    .bubble {
+      max-width: 86%; margin-top: 8px; padding: 10px 12px; border-radius: 16px;
+      font-size: 0.98rem; line-height: 1.4; white-space: pre-wrap;
+    }
+    .bubble p { margin: 0 0 4px; }
+    .bubble time { display: block; margin-top: 4px; font-size: 0.7rem; font-weight: 650; opacity: 0.75; }
+    .mine { margin-left: auto; background: var(--green); color: white; border-bottom-right-radius: 5px; }
+    .theirs { margin-right: auto; background: white; border-bottom-left-radius: 5px; box-shadow: var(--shadow); }
+    .confirm-card { max-width: 92%; }
+    .confirm-actions { display: flex; gap: 6px; margin-top: 8px; }
+    .confirm-actions button { flex: 1; min-height: 40px; border: 0; border-radius: 10px; font-weight: 800; }
+    .confirm-actions .yes { background: var(--green); color: white; }
+    .confirm-actions .no { background: #fde8e6; color: var(--milne); }
+    .confirm-actions .edit { background: var(--green-soft); color: var(--green-dark); }
+    .chips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 8px; scrollbar-width: none; }
     .chips::-webkit-scrollbar { display: none; }
-    .chips button { flex: 0 0 auto; border-radius: 999px; padding: 0 12px; }
-    .composer[hidden],
-    .chips[hidden] { display: none !important; }
+    .chips button {
+      flex: 0 0 auto; width: auto; min-height: 34px; height: 34px; padding: 0 12px;
+      border-radius: 999px; border: 0; background: white; color: var(--green-dark);
+      font-size: 0.84rem; font-weight: 750; box-shadow: var(--shadow);
+    }
+    .composer[hidden], .chips[hidden] { display: none !important; }
     .composer {
-      position: sticky;
-      bottom: 0;
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      background: var(--paper);
-      padding: 8px 0 2px;
-      z-index: 4;
+      position: sticky; bottom: 0; display: flex; gap: 8px; align-items: center;
+      background: linear-gradient(transparent, var(--paper) 20%); padding: 6px 0 2px; z-index: 4;
     }
-    .composer input { flex: 1; }
+    .composer input { flex: 1; background: white; border-radius: 999px; min-height: 48px; }
     #plus {
-      width: 48px; min-width: 48px; height: 48px; border-radius: 999px;
-      border: 1.5px solid var(--green-dark); background: white; color: var(--green-dark);
-      font-weight: 800; font-size: 1.6rem; line-height: 1; padding: 0;
+      width: 44px; min-width: 44px; height: 44px; border-radius: 999px; border: 0;
+      background: white; color: var(--green-dark); font-size: 1.5rem; font-weight: 700;
+      box-shadow: var(--shadow); padding: 0;
     }
-    .party-tabs { display: flex; gap: 8px; }
-    .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: transparent; box-shadow: none; padding: 0; }
-    .summary div { background: white; border-radius: 16px; padding: 12px; box-shadow: var(--shadow); }
-    .summary .dene, .summary .milne { font-size: 1.35rem; margin: 4px 0 0; }
-    .avatar {
-      width: 48px; height: 48px; border-radius: 999px; display: grid; place-items: center;
-      background: var(--green-soft); color: var(--green-dark); font-weight: 800; flex: 0 0 auto;
+    #record.mic {
+      width: 60px; min-width: 60px; height: 60px; min-height: 60px; margin: 0; padding: 0;
+      border: 0; border-radius: 999px; background: var(--green); color: white;
+      display: grid; place-items: center; box-shadow: 0 6px 16px rgba(14, 122, 75, 0.35);
     }
+    #record.mic svg { width: 26px; height: 26px; }
+    #record.mic .icon-stop, #record.mic[data-state="recording"] .icon-mic { display: none; }
+    #record.mic[data-state="recording"] { background: var(--danger); box-shadow: 0 0 0 0 rgba(180, 35, 24, 0.45); animation: mic-pulse 1.1s ease-out infinite; }
+    #record.mic[data-state="recording"] .icon-stop { display: block; }
+    #record:disabled { opacity: 0.65; }
+    @keyframes mic-pulse {
+      0% { box-shadow: 0 0 0 0 rgba(180, 35, 24, 0.45); }
+      100% { box-shadow: 0 0 0 16px rgba(180, 35, 24, 0); }
+    }
+    .home-sum {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
+      background: white; border-radius: var(--r); padding: 10px; margin: 4px 0 8px; box-shadow: var(--shadow);
+    }
+    .home-sum div { min-width: 0; }
+    .home-sum strong { display: block; font-size: 0.95rem; margin-top: 2px; }
+    .home-sum.quad { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .home-sum button { all: unset; display: block; width: 100%; cursor: pointer; }
+    .seg {
+      display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+      background: #e7eee9; border-radius: 12px; padding: 3px; gap: 2px;
+    }
+    .seg button {
+      min-height: 36px; border: 0; border-radius: 10px; background: transparent;
+      color: var(--muted); font-weight: 750; font-size: 0.78rem; padding: 0 2px; width: auto;
+    }
+    .seg button.on, .seg button[aria-pressed="true"] { background: white; color: var(--green-dark); box-shadow: 0 1px 2px rgba(16,32,24,.12); }
+    .sticky-sum { position: sticky; top: 0; z-index: 3; }
+    .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: transparent; box-shadow: none; padding: 0; margin-top: 8px; }
+    .summary > div { background: white; border-radius: 14px; padding: 10px 12px; box-shadow: var(--shadow); }
+    .summary .dene, .summary .milne { font-size: 1.15rem; margin: 2px 0 0; }
+    .search-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+    .search { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; background: white; border-radius: 999px; padding: 0 12px; min-height: 48px; box-shadow: var(--shadow); overflow: hidden; }
+    .search svg { width: 18px; height: 18px; flex: 0 0 auto; color: var(--muted); }
+    .search input { border: 0; min-width: 0; min-height: 44px; padding: 0; background: transparent; box-shadow: none; }
+    .icon-btn {
+      width: 48px; min-width: 48px; height: 48px; border: 0; border-radius: 14px;
+      background: white; color: var(--green-dark); display: grid; place-items: center;
+      box-shadow: var(--shadow); padding: 0;
+    }
+    .icon-btn svg { width: 20px; height: 20px; }
+    .icon-btn[aria-pressed="true"] { background: var(--green); color: white; }
+    .party-list { background: white; border-radius: var(--r); overflow: hidden; margin-top: 8px; box-shadow: var(--shadow); }
     .party-row {
       display: flex; gap: 10px; align-items: center; width: 100%; text-align: left;
-      background: white; border: 0; border-radius: 16px; padding: 10px; margin-top: 8px; min-height: 64px;
-      box-shadow: var(--shadow);
+      background: white; border: 0; border-radius: 0; padding: 10px 12px; margin: 0;
+      min-height: 64px; box-shadow: none; border-bottom: 1px solid var(--line);
     }
-    .party-row strong, .party-row span { display: block; }
-    .party-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .party-list .party-row:last-child { border-bottom: 0; }
+    .party-row > .grow strong, .party-row > .grow > span { display: block; }
+    .party-row > .grow strong { font-size: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .party-row > span.avatar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px; height: 40px; flex: 0 0 40px;
+      border-radius: 999px; background: var(--green-soft); color: var(--green-dark);
+      font-weight: 800; font-size: 0.85rem; line-height: 1; text-align: center; padding: 0;
+    }
     .grow { flex: 1; min-width: 0; }
-    .party-bal { flex: 0 0 auto; text-align: right; max-width: 46%; }
+    .party-row > .party-bal { display: flex; flex-direction: column; align-items: flex-end; flex: 0 0 auto; max-width: 46%; text-align: right; }
     .milne { color: var(--milne); font-weight: 800; }
     .dene { color: var(--dene); font-weight: 800; }
     .zero { color: #4b5563; font-weight: 750; }
-    .milne .muted, .dene .muted, .zero .muted { color: inherit; font-weight: 750; font-size: 0.82rem; }
+    .party-bal .muted { color: inherit; font-size: 0.72rem; }
     .hide-bal .money, .hide-bal .milne, .hide-bal .dene, .hide-bal .zero { visibility: hidden; }
-    .float-add {
-      position: static;
-      display: block;
-      width: 100%;
-      margin-top: 12px;
-      min-height: 48px;
-      border-radius: 999px;
+    .float-add { width: 100%; margin-top: 12px; }
+    .ledger-head { position: sticky; top: 0; z-index: 2; background: var(--paper); padding-bottom: 8px; }
+    .pay-row { display: flex; gap: 8px; margin-top: 8px; }
+    .pay { flex: 1; min-height: 52px; border: 0; border-radius: 14px; color: white; font-weight: 800; font-size: 1.05rem; }
+    .pay-diye { background: var(--dene); }
+    .pay-liye { background: var(--milne); }
+    .day-label { margin: 14px 2px 6px; font-size: 0.75rem; font-weight: 800; color: var(--muted); }
+    .entry {
+      width: 100%; display: flex; justify-content: space-between; gap: 8px; align-items: center;
+      text-align: left; background: white; border: 0; border-bottom: 1px solid var(--line);
+      min-height: 56px; padding: 8px 12px;
     }
-    table.khata td.milne, table.khata td.dene, table.khata td.zero { text-align: right; }
-    .baqi-label { display: block; font-size: 0.72rem; font-weight: 750; }
-    #pane-hisaab .choice { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 12px; }
-    #pane-hisaab .choice button { width: auto; min-width: 0; }
-    #pane-hisaab .choice button.on { background: var(--green); color: white; border-color: var(--green); }
-    .table-wrap { overflow-x: auto; margin-top: 8px; }
-    table.khata { width: 100%; border-collapse: collapse; font-size: 0.82rem; table-layout: fixed; }
-    table.khata th, table.khata td { text-align: left; padding: 8px 3px; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
-    table.khata th { color: var(--muted); font-size: 0.72rem; }
-    table.khata th:nth-child(1), table.khata td:nth-child(1) { width: 22%; }
-    table.khata th:nth-child(2), table.khata td:nth-child(2) { width: 24%; }
-    table.khata th:nth-child(3), table.khata td:nth-child(3) { width: 16%; }
-    table.khata th:nth-child(4), table.khata td:nth-child(4) { width: 18%; }
-    table.khata th:nth-child(5), table.khata td:nth-child(5) { width: 20%; }
-    .tools { display: grid; grid-template-columns: 1fr 1fr 1fr; }
-    .tools input { grid-column: 1 / -1; width: 100%; }
-    @media (max-width: 420px) {
+    .entry-list { background: white; border-radius: var(--r); overflow: hidden; box-shadow: var(--shadow); }
+    .entry-list .entry:last-child { border-bottom: 0; }
+    .entry-main { font-weight: 700; min-width: 0; }
+    .entry-main .muted { display: block; margin-top: 2px; }
+    .entry-amt { text-align: right; font-size: 0.82rem; }
+    .entry-amt strong { display: block; }
+    .table-wrap { overflow-x: auto; }
+    table.khata { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    table.khata th, table.khata td { text-align: left; padding: 8px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    .baqi-label { display: block; font-size: 0.72rem; }
+    .menu-item {
+      width: 100%; min-height: 48px; margin-top: 6px; text-align: left; border: 0;
+      background: white; border-radius: 12px; font-weight: 750; padding: 0 14px; box-shadow: var(--shadow);
+    }
+    .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .tile {
+      min-height: 64px; border: 0; border-radius: 14px; background: white; color: var(--ink);
+      font-weight: 750; font-size: 0.78rem; padding: 8px 4px; box-shadow: var(--shadow);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    }
+    .tile .mark { width: 28px; height: 28px; border-radius: 999px; background: var(--green-soft); color: var(--green-dark); display: grid; place-items: center; font-size: 0.8rem; font-weight: 800; }
+    .tile[aria-pressed="true"] { background: var(--green); color: white; }
+    .tile[aria-pressed="true"] .mark { background: rgba(255,255,255,.2); color: white; }
+    .chip-pick, .name-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .name-list { flex-direction: column; }
+    .pick {
+      min-height: 40px; border: 0; border-radius: 999px; background: white; color: var(--ink);
+      font-weight: 700; padding: 0 12px; box-shadow: var(--shadow);
+    }
+    .name-list .pick { width: 100%; text-align: left; border-radius: 12px; min-height: 48px; }
+    .pick[aria-pressed="true"] { background: var(--green); color: white; }
+    .seg.inline { display: flex; }
+    .seg.inline button { flex: 1; }
+    .save-bar { position: sticky; bottom: 0; background: var(--paper); padding: 10px 0 2px; z-index: 2; }
+    #pane-hisaab .choice { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    #pane-hisaab .choice button { min-height: 44px; border: 0; border-radius: 12px; background: white; font-weight: 750; }
+    #pane-hisaab .choice button.on { background: var(--green); color: white; }
+    @media (max-width: 380px) {
       body { padding-left: 10px; padding-right: 10px; }
-      .app-head h1 { font-size: 1.25rem; }
-      nav button { font-size: 0.62rem; min-height: 48px; }
-      .bubble { font-size: 1rem; }
-      .chips { display: grid; grid-template-columns: 1fr 1fr; overflow: visible; }
-      .chips button { width: 100%; }
+      .seg button { font-size: 0.7rem; }
+      nav button { font-size: 0.6rem; min-height: 48px; }
+      .home-sum strong { font-size: 0.86rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #record.mic[data-state="recording"] { animation: none; }
     }
   </style>
 </head>
 <body>
   <main>
     <header class="app-head">
-      <div>
-        <p class="eyebrow">Munshi</p>
-        <h1 id="farm"></h1>
-      </div>
-      <button id="open-likhein" class="header-action" type="button">Likhein</button>
+      <p class="eyebrow">Munshi</p>
+      <h1 id="farm"></h1>
     </header>
     <section id="pane-bolein" class="chat-pane">
+      <div id="home-sum" class="home-sum" hidden></div>
       <div class="chat-top">
-        <button type="button" id="chat-old" class="secondary">Purani chats</button>
-        <button type="button" id="chat-new" class="secondary">Naya chat</button>
+        <button type="button" id="chat-old">Purani chats</button>
+        <button type="button" id="chat-new">Naya chat</button>
       </div>
       <div id="thread" class="thread"></div>
       <p id="status" class="status" role="status"></p>
@@ -752,23 +744,33 @@
       openEditor(TABLE_KIND[first.table] || "expense", { id: first.id, kind: TABLE_KIND[first.table] || "" });
     }
 
+    function bubbleTime(iso) {
+      if (!iso) return "";
+      const when = new Date(iso);
+      if (Number.isNaN(when.getTime())) return "";
+      return when.toLocaleTimeString("en-GB", { timeZone: "Asia/Karachi", hour: "2-digit", minute: "2-digit" });
+    }
+
     function appendBubble(msg, thread) {
       const bubble = el("div", null, "bubble " + (msg.role === "farmer" ? "mine" : "theirs"));
       if (msg.payload && msg.payload.kind === "receipt") bubble.classList.add("receipt");
+      if (msg.payload && msg.payload.kind === "confirm") bubble.classList.add("confirm-card");
       if (msg.content) bubble.appendChild(el("p", msg.content));
       const payload = msg.payload || {};
       if (payload.kind === "receipt") {
         const open = el("button", "Record kholein");
         open.type = "button";
+        open.className = "pick";
         open.addEventListener("click", () => openReceipt(msg));
         bubble.appendChild(open);
       }
       if (payload.kind === "confirm" && payload.state === "open" && !threadReadOnly) {
-        const row = el("div", null, "choice");
+        const row = el("div", null, "confirm-actions");
         for (const action of payload.actions || []) {
           const button = el("button", ACTION_LABELS[action.id] || action.label || "Haan");
           button.type = "button";
           button.dataset.action = action.id;
+          button.className = action.id === "confirm_yes" ? "yes" : action.id === "confirm_no" ? "no" : "edit";
           button.addEventListener("click", () => {
             if (busy) return;
             if (action.id === "confirm_edit" && (payload.entries || []).length) {
@@ -782,6 +784,13 @@
         bubble.appendChild(row);
       } else if (payload.state === "yes" || payload.state === "no" || payload.state === "edit") {
         bubble.appendChild(el("p", payload.state === "yes" ? "Haan" : payload.state === "no" ? "Nahi" : "Edit", "muted"));
+      }
+      const stamp = bubbleTime(msg.created_at);
+      if (stamp) {
+        const time = document.createElement("time");
+        time.dateTime = msg.created_at;
+        time.textContent = stamp;
+        bubble.appendChild(time);
       }
       thread.appendChild(bubble);
     }
@@ -816,6 +825,30 @@
       form.hidden = threadReadOnly;
       const chips = document.getElementById("quick-chips");
       if (chips) chips.hidden = threadReadOnly;
+      if (!threadReadOnly) paintHome();
+    }
+
+    async function paintHome() {
+      const slot = document.getElementById("home-sum");
+      if (!slot) return;
+      try {
+        const data = await api("aaj");
+        const sale = (data.sales || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+        const wasool = (data.sales || []).reduce((sum, row) => sum + (Number(row.cash_received) || 0), 0);
+        slot.hidden = false;
+        slot.textContent = "";
+        const bits = [["Doodh", (data.milk_litres || 0) + " L"], ["Sale", money(sale)], ["Wasooli", money(wasool)]];
+        for (const bit of bits) {
+          const cell = el("button", "");
+          cell.type = "button";
+          cell.appendChild(el("span", bit[0], "muted"));
+          cell.appendChild(el("strong", bit[1]));
+          cell.addEventListener("click", () => showTab("aaj"));
+          slot.appendChild(cell);
+        }
+      } catch (err) {
+        slot.hidden = true;
+      }
     }
 
     async function showOldChats() {
@@ -874,7 +907,7 @@
         for (const item of PLUS) {
           const button = el("button", item[1]);
           button.type = "button";
-          button.className = "secondary line-btn";
+          button.className = "menu-item";
           button.addEventListener("click", () => {
             menu.hidden = true;
             openEditor(item[0]);
@@ -1013,20 +1046,23 @@
       try {
         const data = await api("aaj");
         status.textContent = "";
-        const card = el("div", null, "card");
-        card.appendChild(el("h2", "Aaj ka doodh"));
-        card.appendChild(el("p", "Doodh " + data.milk_litres + " L", "tot"));
-        card.appendChild(el("p", "Becha " + data.sold_litres + " L", "tot"));
-        card.appendChild(el("p", "Bacha " + data.unsold_litres + " L", "tot"));
+        const saleTotal = (data.sales || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+        const wasool = (data.sales || []).reduce((sum, row) => sum + (Number(row.cash_received) || 0), 0);
+        const card = el("div", null, "home-sum quad");
+        for (const bit of [["Doodh", data.milk_litres + " L"], ["Sale", money(saleTotal)], ["Wasooli", money(wasool)], ["Bacha", data.unsold_litres + " L"]]) {
+          const cell = el("div");
+          cell.appendChild(el("span", bit[0], "muted"));
+          cell.appendChild(el("strong", bit[1]));
+          card.appendChild(cell);
+        }
         root.appendChild(card);
 
         const formCard = el("form", null, "card");
         formCard.appendChild(el("h2", "Doodh likhein"));
         const cow = input("text", "Gay ka naam");
-        const session = document.createElement("select");
-        session.appendChild(new Option("Subah", "am"));
-        session.appendChild(new Option("Shaam", "pm"));
+        const session = chipPicker([["am", "Subah"], ["pm", "Shaam"]], "am", "seg inline");
         const litres = input("number", "Litre");
+        litres.classList.add("num-lg");
         formCard.appendChild(field("Gay", cow));
         formCard.appendChild(field("Waqt", session));
         formCard.appendChild(field("Litre", litres));
@@ -1155,6 +1191,46 @@
     let partyRoot = null;
     let partyStatus = null;
 
+    function chipPicker(pairs, value, className) {
+      const wrap = document.createElement("div");
+      wrap.className = className || "chip-pick";
+      let current = value == null ? "" : String(value);
+      const buttons = [];
+      function paint() {
+        for (const button of buttons) button.setAttribute("aria-pressed", button.dataset.value === current ? "true" : "false");
+      }
+      for (const pair of pairs || []) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "pick";
+        button.dataset.value = String(pair[0]);
+        button.textContent = pair[1];
+        button.addEventListener("click", () => {
+          current = String(pair[0]);
+          paint();
+          wrap.dispatchEvent(new Event("change"));
+        });
+        buttons.push(button);
+        wrap.appendChild(button);
+      }
+      Object.defineProperty(wrap, "value", {
+        get() { return current; },
+        set(next) { current = next == null ? "" : String(next); paint(); }
+      });
+      paint();
+      return wrap;
+    }
+
+    function iconButton(label, markup, pressed) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "icon-btn";
+      button.setAttribute("aria-label", label);
+      button.innerHTML = markup;
+      if (pressed) button.setAttribute("aria-pressed", "true");
+      return button;
+    }
+
     function initials(name) {
       const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
       return ((parts[0] || "?").slice(0, 1) + (parts[1] || "").slice(0, 1)).toUpperCase();
@@ -1176,6 +1252,7 @@
       try {
         const data = await api("party?kind=" + encodeURIComponent(kind) + "&name=" + encodeURIComponent(name));
         status.textContent = "";
+        const headWrap = el("div", null, "ledger-head");
         const card = el("div", null, "card");
         card.appendChild(el("h2", data.name));
         const head = balanceView(signedAmount(kind, data));
@@ -1184,7 +1261,7 @@
         const edit = el("button", "Badlein");
         edit.type = "button";
         edit.addEventListener("click", () => openEditor(kind === "bank" ? "supplier" : kind, { id: data.id, name: data.name, kind: kind }));
-          const archive = el("button", "Chhupa dein");
+        const archive = el("button", "Chhupa dein");
         archive.type = "button";
         archive.addEventListener("click", async () => {
           await api("party", { op: "archive", kind: kind, name: data.name, id: data.id });
@@ -1222,34 +1299,7 @@
           });
           card.appendChild(set);
         }
-        const table = document.createElement("table");
-        table.className = "khata";
-        table.innerHTML = "<thead><tr><th>Tareekh</th><th>Yad</th><th>Diye</th><th>Liye</th><th>Baqi</th></tr></thead>";
-        const body = document.createElement("tbody");
-        for (const line of data.lines || []) {
-          const tr = document.createElement("tr");
-          const baqi = balanceView(signedAmount(kind, line));
-          const cells = [line.when || line.date || line.label, shownNote(line), line.diye ? money(line.diye) : "", line.liye ? money(line.liye) : ""];
-          for (const text of cells) {
-            const td = document.createElement("td");
-            td.textContent = text;
-            tr.appendChild(td);
-          }
-          const baqiCell = document.createElement("td");
-          baqiCell.className = baqi.tone;
-          if (baqi.label) baqiCell.appendChild(el("span", baqi.label, "baqi-label"));
-          baqiCell.appendChild(el("strong", baqi.text));
-          tr.appendChild(baqiCell);
-          if (line.id && line.kind !== "opening") {
-            tr.addEventListener("click", () => openEditor(line.kind === "bank" ? "supplier" : (line.kind || kind), { id: line.id, kind: line.kind || kind, name: data.name }));
-          }
-          body.appendChild(tr);
-        }
-        table.appendChild(body);
-        const wrap = el("div", null, "table-wrap");
-        wrap.appendChild(table);
-        card.appendChild(wrap);
-        root.appendChild(card);
+        headWrap.appendChild(card);
         const form = el("form", null, "card");
         const amount = input("number", "Raqam");
         const note = input("text", "Yad");
@@ -1257,10 +1307,18 @@
         const photo = document.createElement("input");
         photo.type = "file";
         photo.accept = "image/*";
+        photo.className = "sr-only";
+        const photoBtn = el("button", "Tasveer");
+        photoBtn.type = "button";
+        photoBtn.className = "pick";
+        photoBtn.addEventListener("click", () => photo.click());
+        const photoRow = el("div", null, "choice");
+        photoRow.appendChild(photo);
+        photoRow.appendChild(photoBtn);
         form.appendChild(field("Raqam", amount));
         form.appendChild(field("Yad", note));
         form.appendChild(field("Tareekh", date));
-        form.appendChild(field("Photo, agar chahiye", photo));
+        form.appendChild(photoRow);
         const choice = el("div", null, "choice");
         async function postEntry(direction) {
           let picture = "";
@@ -1290,14 +1348,51 @@
         const liye = el("button", "Liye");
         diye.type = "button";
         liye.type = "button";
-        diye.className = "big";
-        liye.className = "big";
+        diye.className = "pay pay-diye";
+        liye.className = "pay pay-liye";
         diye.addEventListener("click", () => postEntry("diye").catch((err) => { status.textContent = err.message; }));
         liye.addEventListener("click", () => postEntry("liye").catch((err) => { status.textContent = err.message; }));
+        choice.className = "pay-row";
         choice.appendChild(diye);
         choice.appendChild(liye);
-        form.appendChild(choice);
-        root.appendChild(form);
+        form.insertBefore(choice, form.firstChild);
+        headWrap.appendChild(form);
+        root.appendChild(headWrap);
+        const groups = [];
+        const seen = new Map();
+        for (const line of data.lines || []) {
+          const key = line.date || "pehle";
+          if (!seen.has(key)) {
+            const group = { key, label: line.date ? (line.when ? String(line.when).split(" . ")[0] : line.date) : "Pehle", lines: [] };
+            seen.set(key, group);
+            groups.push(group);
+          }
+          seen.get(key).lines.push(line);
+        }
+        const list = el("div", null, "entry-list");
+        for (const group of groups) {
+          list.appendChild(el("p", group.label, "day-label"));
+          for (const line of group.lines) {
+            const baqi = balanceView(signedAmount(kind, line));
+            const row = el("button", "");
+            row.type = "button";
+            row.className = "entry";
+            const main = el("span", null, "entry-main");
+            main.appendChild(el("strong", shownNote(line) || line.label || ""));
+            const sideBits = [line.diye ? "Diye " + money(line.diye) : "", line.liye ? "Liye " + money(line.liye) : ""].filter(Boolean).join(" · ");
+            if (sideBits) main.appendChild(el("span", sideBits, "muted"));
+            const amt = el("span", null, "entry-amt " + baqi.tone);
+            if (baqi.label) amt.appendChild(el("span", baqi.label));
+            amt.appendChild(el("strong", baqi.text));
+            row.appendChild(main);
+            row.appendChild(amt);
+            if (line.id && line.kind !== "opening") {
+              row.addEventListener("click", () => openEditor(line.kind === "bank" ? "supplier" : (line.kind || kind), { id: line.id, kind: line.kind || kind, name: data.name }));
+            }
+            list.appendChild(row);
+          }
+        }
+        root.appendChild(list);
         const close = el("button", "Band karein");
         close.type = "button";
         close.className = "secondary";
@@ -1321,17 +1416,17 @@
         const data = await api("party");
         slot.textContent = "";
         box.classList.toggle("hide-bal", hideMoney);
-        box.appendChild(el("h2", "Party"));
-        const tabs = el("div", null, "party-tabs choice");
+        const tabs = el("div", null, "seg");
         for (const tab of [["customer", "Grahak"], ["supplier", "Supplier"], ["bank", "Bank"], ["all", "Sab"]]) {
           const button = el("button", tab[1]);
           button.type = "button";
-          if (partyTab === tab[0]) button.className = "big";
+          button.className = partyTab === tab[0] ? "on" : "";
+          button.setAttribute("aria-pressed", partyTab === tab[0] ? "true" : "false");
           button.addEventListener("click", () => { partyTab = tab[0]; renderParty(); });
           tabs.appendChild(button);
         }
         box.appendChild(tabs);
-        const summary = el("div", null, "card summary");
+        const summary = el("div", null, "card summary sticky-sum");
         const give = el("div");
         give.appendChild(el("p", "Aap ne dene hain", "muted"));
         give.appendChild(el("p", money(data.dene), "dene money"));
@@ -1341,31 +1436,26 @@
         summary.appendChild(give);
         summary.appendChild(get);
         box.appendChild(summary);
-        box.appendChild(el("p", "Laal mein milne hain. Hare mein dene hain.", "legend"));
-        const hide = el("button", hideMoney ? "Balance dikhayein" : "Balance chhupayein");
-        hide.type = "button";
-        hide.className = "secondary";
-        hide.addEventListener("click", () => {
-          hideMoney = !hideMoney;
-          try { localStorage.setItem("munshi-hide", hideMoney ? "1" : "0"); } catch (err) {}
-          renderParty();
-        });
-        box.appendChild(hide);
-        const tools = el("div", null, "choice tools");
-        const search = input("text", "Naam dhoondein");
+        const tools = el("div", null, "search-row");
+        const searchWrap = el("label", null, "search");
+        searchWrap.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 16l4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+        const search = input("text", "Naam");
         search.value = partyQuery;
-        const find = el("button", "Dhoondein");
-        find.type = "button";
-        find.addEventListener("click", () => { partyQuery = search.value; renderParty(); });
-        const filter = el("button", "Chhan");
-        filter.type = "button";
+        search.setAttribute("aria-label", "Naam dhoondein");
+        searchWrap.appendChild(search);
+        const filter = iconButton("Chhan " + partyFilter, '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>', partyFilter !== "sab");
         filter.addEventListener("click", () => {
           const order = ["sab", "milne", "dene", "zero"];
           partyFilter = order[(order.indexOf(partyFilter) + 1) % order.length];
           renderParty();
         });
-        const pdf = el("button", "Parchi");
-        pdf.type = "button";
+        const hide = iconButton(hideMoney ? "Balance dikhayein" : "Balance chhupayein", '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>', hideMoney);
+        hide.addEventListener("click", () => {
+          hideMoney = !hideMoney;
+          try { localStorage.setItem("munshi-hide", hideMoney ? "1" : "0"); } catch (err) {}
+          renderParty();
+        });
+        const pdf = iconButton("Parchi", '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h7l5 5V20a1.5 1.5 0 0 1-1.5 1.5h-10.5A1.5 1.5 0 0 1 5.5 20V5A1.5 1.5 0 0 1 7 3.5Z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M14 3.5V9h5.5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>');
         pdf.addEventListener("click", async () => {
           const file = await api("party.pdf");
           const bytes = Uint8Array.from(atob(file.pdf), (ch) => ch.charCodeAt(0));
@@ -1377,43 +1467,52 @@
           link.click();
           URL.revokeObjectURL(url);
         });
-        tools.appendChild(search);
-        tools.appendChild(find);
+        tools.appendChild(searchWrap);
         tools.appendChild(filter);
+        tools.appendChild(hide);
         tools.appendChild(pdf);
         box.appendChild(tools);
-        const rows = partyRows(data).filter((row) => {
-          if (row.archived) return false;
-          if (partyQuery && !String(row.name || "").toLowerCase().includes(partyQuery.toLowerCase())) return false;
-          if (partyFilter === "milne") return row.tone === "milne";
-          if (partyFilter === "dene") return row.tone === "dene";
-          if (partyFilter === "zero") return row.tone === "zero";
-          return true;
-        });
-        const noun = partyTab === "supplier" ? "Supplier" : partyTab === "bank" ? "Bank" : partyTab === "all" ? "Party" : "Grahak";
-        box.appendChild(el("p", rows.length + " " + noun + (partyFilter === "sab" ? "" : " · " + partyFilter), "muted"));
-        if (!rows.length) {
-          const blank = el("div", null, "empty");
-          blank.appendChild(el("strong", "Koi party nahi"));
-          blank.appendChild(el("p", "Naya naam likhein, phir us ka hisaab yahin dikhega."));
-          box.appendChild(blank);
+        search.addEventListener("input", () => { partyQuery = search.value; showRows(); });
+        const listHold = el("div");
+        box.appendChild(listHold);
+        function showRows() {
+          listHold.textContent = "";
+          const rows = partyRows(data).filter((row) => {
+            if (row.archived) return false;
+            if (partyQuery && !String(row.name || "").toLowerCase().includes(partyQuery.toLowerCase())) return false;
+            if (partyFilter === "milne") return row.tone === "milne";
+            if (partyFilter === "dene") return row.tone === "dene";
+            if (partyFilter === "zero") return row.tone === "zero";
+            return true;
+          });
+          const noun = partyTab === "supplier" ? "Supplier" : partyTab === "bank" ? "Bank" : partyTab === "all" ? "Party" : "Grahak";
+          listHold.appendChild(el("p", rows.length + " " + noun + (partyFilter === "sab" ? "" : " · " + partyFilter), "muted"));
+          if (!rows.length) {
+            const blank = el("div", null, "empty");
+            blank.appendChild(el("strong", "Koi party nahi"));
+            blank.appendChild(el("p", "Naya naam likhein, phir us ka hisaab yahin dikhega."));
+            listHold.appendChild(blank);
+          }
+          const list = el("div", null, "party-list");
+          for (const row of rows) {
+            const button = el("button", "");
+            button.type = "button";
+            button.className = "party-row";
+            const face = el("span", initials(row.name), "avatar");
+            const text = el("span", null, "grow");
+            text.appendChild(el("strong", row.name));
+            text.appendChild(el("span", row.when || "Abhi koi entry nahi", "muted"));
+            const bal = el("span", row.tone === "zero" ? "Rs 0" : money(row.show_amount), row.tone + " party-bal");
+            if (row.side) bal.appendChild(el("span", row.side, "muted"));
+            button.appendChild(face);
+            button.appendChild(text);
+            button.appendChild(bal);
+            button.addEventListener("click", () => openParty(row.kind, row.kind === "bank" ? row.id : row.name));
+            list.appendChild(button);
+          }
+          if (rows.length) listHold.appendChild(list);
         }
-        for (const row of rows) {
-          const button = el("button", "");
-          button.type = "button";
-          button.className = "party-row";
-          const face = el("span", initials(row.name), "avatar");
-          const text = el("span", null, "grow");
-          text.appendChild(el("strong", row.name));
-          text.appendChild(el("span", row.when || "Abhi koi entry nahi", "muted"));
-          const bal = el("span", row.tone === "zero" ? "Rs 0" : money(row.show_amount), row.tone + " party-bal");
-          if (row.side) bal.appendChild(el("span", row.side, "muted"));
-          button.appendChild(face);
-          button.appendChild(text);
-          button.appendChild(bal);
-          button.addEventListener("click", () => openParty(row.kind, row.kind === "bank" ? row.id : row.name));
-          box.appendChild(button);
-        }
+        showRows();
         const archived = partyRows(data).filter((row) => row.archived);
         if (archived.length) {
           const fold = el("button", "Archived (" + archived.length + ")");
@@ -1638,11 +1737,35 @@
       const root = document.getElementById("editor");
       root.hidden = false;
       root.textContent = "";
-      const card = el("form", null, "card");
+      const card = el("form", null, "card editor");
       card.appendChild(el("h2", record && record.id ? "Record badlein" : "Likhein"));
       const kindSelect = selectBox(KINDS);
+      kindSelect.className = "sr-only";
       kindSelect.value = kind || (record && record.kind) || "milk";
-      card.appendChild(field("Kya likhna hai", kindSelect));
+      kindSelect.setAttribute("aria-label", "Kya likhna hai");
+      const tiles = el("div", null, "tiles");
+      for (const pair of KINDS) {
+        const tile = el("button", "");
+        tile.type = "button";
+        tile.className = "tile";
+        tile.dataset.kind = pair[0];
+        const mark = el("span", pair[1].slice(0, 1), "mark");
+        tile.appendChild(mark);
+        tile.appendChild(document.createTextNode(pair[1]));
+        tile.addEventListener("click", () => {
+          if (kindSelect.value === pair[0]) return;
+          kindSelect.value = pair[0];
+          kindSelect.dispatchEvent(new Event("change"));
+        });
+        tiles.appendChild(tile);
+      }
+      function paintTiles() {
+        for (const tile of tiles.querySelectorAll(".tile")) {
+          tile.setAttribute("aria-pressed", tile.dataset.kind === kindSelect.value ? "true" : "false");
+        }
+      }
+      card.appendChild(tiles);
+      card.appendChild(kindSelect);
       const box = el("div", null, "stack");
       card.appendChild(box);
       const status = el("p", "", "status");
@@ -1650,7 +1773,8 @@
       const save = el("button", "Mehfooz");
       save.type = "submit";
       save.className = "big";
-      card.appendChild(save);
+      const bar = el("div", null, "save-bar");
+      bar.appendChild(save);
       if (record && record.id) {
         const del = el("button", "Hatayein");
         del.type = "button";
@@ -1678,6 +1802,7 @@
       close.className = "secondary";
       close.addEventListener("click", () => { root.hidden = true; });
       card.appendChild(close);
+      card.appendChild(bar);
       root.appendChild(card);
       const list = el("div", null, "card");
       list.appendChild(el("h2", "Purane records"));
@@ -1685,18 +1810,15 @@
 
       function control(spec, value) {
         if (spec[0] === "select") {
-          const node = selectBox(spec[2]);
-          if (value != null && value !== "") node.value = value;
-          return node;
+          const preset = value != null && value !== "" ? value : ((spec[2] && spec[2][0] && spec[2][0][0]) || "");
+          const mode = spec[1] === "Waqt" || (spec[2] || []).length <= 3 ? "seg inline" : "chip-pick";
+          return chipPicker(spec[2], preset, mode);
         }
         if (spec[0] === "names") {
-          const node = document.createElement("select");
-          option(node, "", "Chunein");
-          for (const name of spec[2] || []) option(node, name, name);
-          if (value) node.value = value;
-          return node;
+          return chipPicker((spec[2] || []).map((name) => [name, name]), value || "", "name-list");
         }
         const node = input(spec[0] === "date" ? "date" : spec[0] === "number" ? "number" : "text", spec[2] || "");
+        if (spec[0] === "number") node.classList.add("num-lg");
         if (value != null && value !== "") node.value = value;
         return node;
       }
@@ -1808,7 +1930,8 @@
           list.appendChild(button);
         }
       }
-      kindSelect.addEventListener("change", () => { record = null; draw(); });
+      kindSelect.addEventListener("change", () => { record = null; paintTiles(); draw(); });
+      paintTiles();
       draw();
     }
 
@@ -1962,7 +2085,8 @@
       }
     }
 
-    document.getElementById("open-likhein").addEventListener("click", () => openEditor("milk"));
+    const likheinBtn = document.getElementById("open-likhein");
+    if (likheinBtn) likheinBtn.addEventListener("click", () => openEditor("milk"));
 
     const panes = {
       bolein: document.getElementById("pane-bolein"),
