@@ -513,9 +513,12 @@ async function main() {
   assert.deepStrictEqual((munshiMsg.payload.actions || []).map((action) => action.id), ["confirm_yes", "confirm_no", "confirm_edit"]);
   assert.ok(farmerMsg && munshiMsg.created_at > farmerMsg.created_at, "confirm card sorts after the farmer line");
 
-  assert.ok(page.body.includes("Gaye ke hisaab se (optional)"));
   assert.ok(page.body.includes("Kul litre"));
   assert.ok(page.body.includes('op: "add_day"'));
+  assert.ok(page.body.includes('chipPicker([["am", "Subah"], ["pm", "Shaam"]], "am"'));
+  assert.ok(!page.body.includes("Gaye ke hisaab se (optional)"));
+  assert.ok(!page.body.includes('el("h2", "Becha")'));
+  assert.ok(page.body.includes("Zyada"));
   const doodhAt = page.body.indexOf('el("h2", "Doodh likhein")');
   const cowLoopAt = page.body.indexOf("for (const cow of data.cows || [])");
   assert.ok(doodhAt > 0 && cowLoopAt > doodhAt);
@@ -586,6 +589,89 @@ async function main() {
   assert.strictEqual(voiceAaj.json.unsold_litres, 25);
   assert.strictEqual(voiceAaj.json.sales.length, 2);
   assert.ok(!(voiceAaj.json.cows || []).some((row) => row.name && row.name.toLowerCase() !== "kul" && row.rows && row.rows.length));
+
+  const fixFarm = await seed(sheets, "923200000555", "Sohail");
+  const fixBase = `/r/${fixFarm.token}`;
+  assert.strictEqual((await request(server, "POST", fixBase + "/api/manual", {
+    kind: "cow", name: "Gori", animal_type: "cow", status: "milking",
+  })).status, 200);
+  const emptyDay = await request(server, "GET", fixBase + "/api/aaj");
+  assert.ok(emptyDay.json.cows.some((row) => row.name === "Gori" && row.subah === 0 && row.shaam === 0), emptyDay.body);
+  const noRate = await request(server, "POST", fixBase + "/api/aaj", {
+    op: "add_day",
+    session: "am",
+    litres: 40,
+    sales: [{ customer: "Mehman", litres: 10 }],
+  });
+  assert.strictEqual(noRate.status, 200, noRate.body);
+  assert.notStrictEqual(noRate.json.error, "Is grahak ka rate likhein.");
+  assert.strictEqual(noRate.json.milk_litres, 40);
+  assert.strictEqual(noRate.json.sold_litres, 10);
+  assert.strictEqual(noRate.json.unsold_litres, 30);
+  assert.strictEqual(noRate.json.sales.length, 1);
+  assert.ok(!(Number(noRate.json.sales[0].amount) > 0));
+  const kept = await request(server, "GET", fixBase + "/api/aaj");
+  assert.strictEqual(kept.json.milk_litres, 40, "total stays saved when the customer has no rate");
+  const again = await request(server, "POST", fixBase + "/api/aaj", {
+    op: "add_day",
+    session: "am",
+    litres: 42,
+  });
+  assert.strictEqual(again.status, 200, again.body);
+  assert.strictEqual(again.json.milk_litres, 42, "saving the same session again replaces the total");
+  assert.strictEqual(again.json.totals.filter((row) => row.session === "am").length, 1);
+  const shaam = await request(server, "POST", fixBase + "/api/aaj", {
+    op: "add_day",
+    session: "pm",
+    litres: 22.5,
+    sales: [
+      { customer: "Pakistan hotel", litres: 10.5, rate_pkr: 200 },
+      { customer: "Tabarak", litres: 5, rate_pkr: 180 },
+    ],
+  });
+  assert.strictEqual(shaam.status, 200, shaam.body);
+  assert.strictEqual(shaam.json.milk_litres, 64.5);
+  assert.strictEqual(shaam.json.sold_litres, 25.5);
+  const hotel = shaam.json.sales.find((row) => row.customer === "Pakistan hotel");
+  assert.ok(hotel && hotel.litres === 10.5 && hotel.amount === 2100);
+  const over = await request(server, "POST", fixBase + "/api/aaj", {
+    op: "add_sale",
+    customer: "Mehman",
+    litres: 80,
+  });
+  assert.strictEqual(over.status, 200, over.body);
+  assert.strictEqual(over.json.unsold_litres, 0);
+  assert.ok(over.json.oversold_litres > 0, over.body);
+  const editedTotal = await request(server, "POST", fixBase + "/api/aaj", {
+    op: "update",
+    date: today,
+    session: "am",
+    cow_name: "kul",
+    litres: 42,
+    new_litres: 30,
+  });
+  assert.strictEqual(editedTotal.status, 200, editedTotal.body);
+  assert.strictEqual(editedTotal.json.milk_litres, 52.5);
+  const removedTotal = await request(server, "POST", fixBase + "/api/aaj", {
+    op: "delete",
+    confirm: true,
+    id: again.json.totals.find((row) => row.session === "am").id,
+    date: today,
+    session: "am",
+    cow_name: "kul",
+    litres: 30,
+  });
+  assert.strictEqual(removedTotal.status, 200, removedTotal.body);
+  assert.strictEqual(removedTotal.json.milk_litres, 22.5);
+  const rejected = await request(server, "POST", fixBase + "/api/aaj", {
+    op: "add_day",
+    session: "am",
+    litres: 10,
+    sales: [{ customer: "", litres: 4 }],
+  });
+  assert.strictEqual(rejected.status, 400);
+  const afterBlock = await request(server, "GET", fixBase + "/api/aaj");
+  assert.strictEqual(afterBlock.json.milk_litres, 22.5, "a rejected sale does not write the total");
 
   const historySql = fs.readFileSync(path.join(migrationsDir, "20261120120000_record_history.sql"), "utf8");
   assert.ok(/create table public\.chat_messages/i.test(historySql));

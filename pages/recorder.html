@@ -110,7 +110,9 @@
     .cow { display: flex; justify-content: space-between; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
     details.fold { margin-top: 8px; }
     details.fold summary { min-height: 48px; display: flex; align-items: center; font-weight: 750; cursor: pointer; }
-    .sale-line { display: grid; grid-template-columns: 1.4fr 0.8fr; gap: 8px; }
+    .sale-line { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 0.7fr) auto; gap: 8px; align-items: center; }
+    .sale-line .secondary { min-height: 48px; padding: 0 10px; }
+    .home-sum .zyada strong { color: var(--milne); }
     nav {
       position: fixed; left: 0; right: 0; bottom: 0;
       display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -909,6 +911,10 @@
     document.getElementById("quick-chips").addEventListener("click", (event) => {
       const button = event.target.closest("button");
       if (!button || threadReadOnly) return;
+      if (button.dataset.kind === "milk" || button.dataset.kind === "sale") {
+        showTab("aaj");
+        return;
+      }
       openEditor(button.dataset.kind);
     });
     document.getElementById("plus").addEventListener("click", () => {
@@ -922,6 +928,10 @@
           button.className = "menu-item";
           button.addEventListener("click", () => {
             menu.hidden = true;
+            if (item[0] === "milk" || item[0] === "sale") {
+              showTab("aaj");
+              return;
+            }
             openEditor(item[0]);
           });
           menu.appendChild(button);
@@ -1068,9 +1078,17 @@
         status.textContent = "";
         const saleTotal = (data.sales || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
         const wasool = Number(data.wasool) || 0;
+        const over = Number(data.oversold_litres) || 0;
         const card = el("div", null, "home-sum quad");
-        for (const bit of [["Kul doodh", data.milk_litres + " L"], ["Sale", money(saleTotal)], ["Wasooli", money(wasool)], ["Bacha", data.unsold_litres + " L"]]) {
+        const bits = [
+          ["Kul doodh", data.milk_litres + " L"],
+          ["Sale", money(saleTotal)],
+          ["Wasooli", money(wasool)],
+          over > 0 ? ["Zyada", over + " L"] : ["Bacha", (data.unsold_litres || 0) + " L"],
+        ];
+        for (const bit of bits) {
           const cell = el("div");
+          if (bit[0] === "Zyada") cell.className = "zyada";
           cell.appendChild(el("span", bit[0], "muted"));
           cell.appendChild(el("strong", bit[1]));
           card.appendChild(cell);
@@ -1079,48 +1097,45 @@
 
         const formCard = el("form", null, "card");
         formCard.appendChild(el("h2", "Doodh likhein"));
-        const session = chipPicker([["am", "Subah"], ["pm", "Shaam"], ["day", "Poora din"]], "am", "seg inline");
+        const session = chipPicker([["am", "Subah"], ["pm", "Shaam"]], "am", "seg inline");
         const litres = input("number", "Kul litre");
         litres.classList.add("num-lg");
         formCard.appendChild(field("Waqt", session));
         formCard.appendChild(field("Kul litre", litres));
         const saleLines = el("div");
+        const names = document.createElement("datalist");
+        names.id = "grahak-list";
+        for (const row of data.customers || []) {
+          if (row.name) names.appendChild(new Option(row.name));
+        }
+        formCard.appendChild(names);
         function addSaleLine() {
           const row = el("div", null, "sale-line");
           const who = input("text", "Grahak");
+          who.setAttribute("list", "grahak-list");
           const qty = input("number", "Litre");
+          const cash = el("button", "Nagd");
+          cash.type = "button";
+          cash.className = "secondary";
+          cash.setAttribute("aria-pressed", "false");
+          cash.addEventListener("click", () => {
+            const on = cash.getAttribute("aria-pressed") !== "true";
+            cash.setAttribute("aria-pressed", on ? "true" : "false");
+            cash.textContent = on ? "Nagd hai" : "Nagd";
+          });
           row.appendChild(who);
           row.appendChild(qty);
+          row.appendChild(cash);
           saleLines.appendChild(row);
         }
         addSaleLine();
-        formCard.appendChild(el("p", "Becha, kis ko", "muted"));
+        formCard.appendChild(el("p", "Becha, agar becha", "muted"));
         formCard.appendChild(saleLines);
         const moreSale = el("button", "Aur grahak");
         moreSale.type = "button";
         moreSale.className = "secondary";
         moreSale.addEventListener("click", () => addSaleLine());
         formCard.appendChild(moreSale);
-        const fold = document.createElement("details");
-        fold.className = "fold";
-        const summary = document.createElement("summary");
-        summary.textContent = "Gaye ke hisaab se (optional)";
-        fold.appendChild(summary);
-        const cowLines = el("div");
-        function addCowLine(name) {
-          const row = el("div", null, "sale-line");
-          const who = input("text", "Gay");
-          if (name) who.value = name;
-          const qty = input("number", "Litre");
-          row.appendChild(who);
-          row.appendChild(qty);
-          cowLines.appendChild(row);
-        }
-        const known = (data.cows || []).map((row) => row.name).filter((name) => name && name.toLowerCase() !== "kul");
-        if (known.length) known.forEach((name) => addCowLine(name));
-        else addCowLine("");
-        fold.appendChild(cowLines);
-        formCard.appendChild(fold);
         const save = el("button", "Likhein");
         save.type = "submit";
         save.className = "big";
@@ -1132,14 +1147,8 @@
             const inputs = row.querySelectorAll("input");
             const customer = inputs[0] && inputs[0].value.trim();
             const qty = Number(inputs[1] && inputs[1].value);
-            if (customer && qty > 0) sales.push({ customer, litres: qty });
-          }
-          const cows = [];
-          for (const row of cowLines.querySelectorAll(".sale-line")) {
-            const inputs = row.querySelectorAll("input");
-            const cow_name = inputs[0] && inputs[0].value.trim();
-            const qty = Number(inputs[1] && inputs[1].value);
-            if (cow_name && qty > 0) cows.push({ cow_name, litres: qty });
+            const cash = row.querySelector("button");
+            if (customer && qty > 0) sales.push({ customer, litres: qty, cash: cash && cash.getAttribute("aria-pressed") === "true" });
           }
           try {
             await api("aaj", {
@@ -1147,53 +1156,37 @@
               session: session.value,
               litres: Number(litres.value),
               sales,
-              cows,
             });
             renderAaj();
           } catch (err) { status.textContent = err.message; }
         });
         root.appendChild(formCard);
 
-        const sale = el("form", null, "card");
-        sale.appendChild(el("h2", "Becha"));
-        const customer = input("text", "Grahak");
-        const saleLitres = input("number", "Litre");
-        const rate = input("number", "Rate");
-        const cash = el("button", "Nagd");
-        cash.type = "button";
-        cash.className = "secondary";
-        cash.setAttribute("aria-pressed", "false");
-        let paidCash = false;
-        cash.addEventListener("click", () => {
-          paidCash = !paidCash;
-          cash.textContent = paidCash ? "Nagd hai" : "Nagd";
-          cash.setAttribute("aria-pressed", paidCash ? "true" : "false");
-        });
-        sale.appendChild(field("Grahak", customer));
-        sale.appendChild(field("Litre", saleLitres));
-        sale.appendChild(field("Rate, agar pata ho", rate));
-        sale.appendChild(cash);
-        const saleBtn = el("button", "Becha likhein");
-        saleBtn.type = "submit";
-        saleBtn.className = "big";
-        sale.appendChild(saleBtn);
-        sale.addEventListener("submit", async (event) => {
-          event.preventDefault();
-          try {
-            await api("aaj", {
-              op: "add_sale",
-              customer: customer.value,
-              litres: Number(saleLitres.value),
-              rate_pkr: rate.value ? Number(rate.value) : "",
-              cash: paidCash,
-            });
-            renderAaj();
-          } catch (err) { status.textContent = err.message; }
-        });
-        root.appendChild(sale);
-        if ((data.cows || []).length) {
+        for (const row of data.totals || []) {
+          const when = row.session === "pm" ? "Shaam" : row.session === "am" ? "Subah" : "Din";
+          const line = el("button", when + " kul " + row.litres + " L");
+          line.type = "button";
+          line.className = "secondary line-btn";
+          line.addEventListener("click", () => openEditor("milk", row));
+          const del = el("button", "Hatayein");
+          del.type = "button";
+          del.className = "danger";
+          const actions = el("div", null, "row-actions");
+          del.addEventListener("click", () => askDelete("aaj", {
+            op: "delete",
+            id: row.id,
+            date: row.date,
+            session: row.session,
+            cow_name: row.cow_name || "kul",
+            litres: row.litres,
+          }));
+          actions.appendChild(del);
+          root.appendChild(line);
+          root.appendChild(actions);
+        }
         const cows = el("div", null, "card");
         cows.appendChild(el("h2", "Gayein"));
+        if (!(data.cows || []).length) cows.appendChild(el("p", "Abhi koi gay nahi.", "muted"));
         for (const cow of data.cows || []) {
           const line = el("div", null, "cow");
           line.appendChild(el("strong", cow.name));
@@ -1233,11 +1226,18 @@
             actions.appendChild(del);
             cows.appendChild(actions);
           }
+          if (!(cow.rows || []).length) {
+            const add = el("button", "Gay ka doodh");
+            add.type = "button";
+            add.className = "secondary";
+            add.addEventListener("click", () => openEditor("milk", { cow_name: cow.name, session: "am", kind: "milk" }));
+            cows.appendChild(add);
+          }
         }
         root.appendChild(cows);
-        }
         for (const item of data.sales || []) {
-          const line = el("button", item.customer + " · " + item.litres + " L · " + money(item.amount));
+          const price = Number(item.amount) > 0 ? " · " + money(item.amount) : "";
+          const line = el("button", item.customer + " · " + item.litres + " L" + price);
           line.type = "button";
           line.className = "secondary line-btn";
           line.addEventListener("click", () => openEditor("sale", item));
