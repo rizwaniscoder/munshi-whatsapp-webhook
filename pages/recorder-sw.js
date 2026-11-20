@@ -1,10 +1,13 @@
-const CACHE = "munshi-shell-v2";
+const CACHE = "munshi-shell-v3";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE).then((cache) => cache.addAll([
+      "/recorder/favicon-32.png",
+      "/recorder/apple-touch-icon.png",
       "/recorder/icon-192.png",
       "/recorder/icon-512.png",
+      "/recorder/icon-512-maskable.png",
     ])).then(() => self.skipWaiting())
   );
 });
@@ -23,7 +26,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname.includes("/api/")) return;
-  if (url.pathname.startsWith("/recorder/icon-")) {
+  if (url.pathname.startsWith("/recorder/icon-") || url.pathname.startsWith("/recorder/favicon") || url.pathname.startsWith("/recorder/apple-touch")) {
     event.respondWith(caches.match(req).then((hit) => hit || fetch(req)));
     return;
   }

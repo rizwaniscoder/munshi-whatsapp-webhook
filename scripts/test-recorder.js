@@ -259,11 +259,25 @@ async function main() {
   assert.ok(/manifest/i.test(manifest.headers["content-type"] || ""));
   const manifestJson = JSON.parse(manifest.body);
   assert.strictEqual(manifestJson.start_url, `/r/${farmer.token}`);
+  assert.strictEqual(manifestJson.scope, `/r/${farmer.token}`);
+  assert.strictEqual(manifestJson.name, "Munshi");
+  assert.strictEqual(manifestJson.short_name, "Munshi");
+  assert.strictEqual(manifestJson.theme_color, "#0f6b45");
   assert.strictEqual(manifestJson.display, "standalone");
+  const purposes = (manifestJson.icons || []).map((icon) => icon.purpose);
+  assert.ok(purposes.includes("any"));
+  assert.ok(purposes.includes("maskable"));
 
-  const icon = await request(server, "GET", "/recorder/icon-192.png");
-  assert.strictEqual(icon.status, 200);
-  assert.ok((icon.headers["content-type"] || "").includes("image/png"));
+  for (const file of ["icon-192.png", "icon-512.png", "icon-512-maskable.png", "apple-touch-icon.png", "favicon-32.png"]) {
+    const icon = await request(server, "GET", "/recorder/" + file);
+    assert.strictEqual(icon.status, 200, file);
+    assert.ok((icon.headers["content-type"] || "").includes("image/png"), file);
+    assert.ok(icon.body && icon.body.length > 8, file);
+  }
+  const pageHtml = page.body;
+  assert.ok(pageHtml.includes("/recorder/favicon-32.png"));
+  assert.ok(pageHtml.includes("/recorder/apple-touch-icon.png"));
+  assert.ok(pageHtml.includes(`/r/${encodeURIComponent(farmer.token)}/manifest.webmanifest`));
 
   const sw = await request(server, "GET", "/recorder/sw.js");
   assert.strictEqual(sw.status, 200);
