@@ -43,7 +43,7 @@
       color: var(--ink);
       font-size: 16px;
       line-height: 1.35;
-      padding: calc(8px + env(safe-area-inset-top)) 12px calc(92px + env(safe-area-inset-bottom));
+      padding: calc(8px + env(safe-area-inset-top)) 12px calc(148px + env(safe-area-inset-bottom));
     }
     main { max-width: 36rem; margin: 0 auto; }
     button, input, select, textarea { font: inherit; color: inherit; }
@@ -152,7 +152,7 @@
       box-shadow: 0 16px 40px rgba(16, 32, 24, 0.22);
     }
     #confirm p { margin: 0 0 12px; font-size: 1.1rem; font-weight: 750; }
-    .chat-pane { display: flex; flex-direction: column; min-height: calc(100dvh - 132px); }
+    .chat-pane { display: flex; flex-direction: column; min-height: calc(100dvh - 210px); }
     .chat-top { display: flex; gap: 14px; padding: 0 2px 4px; }
     .chat-top button {
       min-height: 36px; border: 0; background: transparent; color: var(--green-dark);
@@ -1068,6 +1068,57 @@
       return raw;
     }
 
+    function openMilkSheet(record) {
+      const root = document.getElementById("editor");
+      root.hidden = false;
+      root.textContent = "";
+      const cow = String((record && (record.cow_name || record.name)) || "").trim();
+      const total = !cow || cow.toLowerCase() === "kul";
+      const card = el("form", null, "card");
+      card.appendChild(el("h2", total ? "Kul doodh" : cow));
+      const session = chipPicker([["am", "Subah"], ["pm", "Shaam"]], record && record.session === "pm" ? "pm" : "am", "seg inline");
+      const litres = input("number", "Litre");
+      litres.classList.add("num-lg");
+      if (record && record.litres != null && record.litres !== "") litres.value = String(record.litres);
+      card.appendChild(field("Waqt", session));
+      card.appendChild(field(total ? "Kul litre" : "Litre", litres));
+      const save = el("button", "Mehfooz");
+      save.type = "submit";
+      save.className = "big";
+      const close = el("button", "Band karein");
+      close.type = "button";
+      close.className = "secondary";
+      close.addEventListener("click", () => { root.hidden = true; });
+      const status = el("p", "", "status");
+      card.appendChild(status);
+      card.appendChild(save);
+      card.appendChild(close);
+      card.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const qty = Number(litres.value);
+        try {
+          if (record && record.id) {
+            await api("manual", {
+              op: "save",
+              kind: "milk",
+              id: record.id,
+              session: session.value,
+              litres: qty,
+              cow_name: total ? "kul" : cow,
+              date: record.date || "",
+            });
+          } else if (total) {
+            await api("aaj", { op: "add_day", session: session.value, litres: qty });
+          } else {
+            await api("aaj", { op: "add", cow_name: cow, session: session.value, litres: qty });
+          }
+          root.hidden = true;
+          renderAaj();
+        } catch (err) { status.textContent = err.message; }
+      });
+      root.appendChild(card);
+    }
+
     async function renderAaj() {
       const status = document.getElementById("aaj-status");
       const root = document.getElementById("aaj-body");
@@ -1167,7 +1218,7 @@
           const line = el("button", when + " kul " + row.litres + " L");
           line.type = "button";
           line.className = "secondary line-btn";
-          line.addEventListener("click", () => openEditor("milk", row));
+          line.addEventListener("click", () => openMilkSheet(row));
           const del = el("button", "Hatayein");
           del.type = "button";
           del.className = "danger";
@@ -1197,7 +1248,7 @@
             const edit = el("button", "Badlein");
             edit.type = "button";
             edit.addEventListener("click", async () => {
-              if (row.id) return openEditor("milk", row);
+              if (row.id) return openMilkSheet(row);
               const next = window.prompt("Naye litre?", String(row.litres));
               if (next == null) return;
               try {
@@ -1230,7 +1281,7 @@
             const add = el("button", "Gay ka doodh");
             add.type = "button";
             add.className = "secondary";
-            add.addEventListener("click", () => openEditor("milk", { cow_name: cow.name, session: "am", kind: "milk" }));
+            add.addEventListener("click", () => openMilkSheet({ cow_name: cow.name, session: "am" }));
             cows.appendChild(add);
           }
         }
@@ -1814,6 +1865,10 @@
     }
 
     function openEditor(kind, record) {
+      if ((kind === "sale" || (record && record.kind === "sale")) && !(record && record.id)) {
+        showTab("aaj");
+        return;
+      }
       const root = document.getElementById("editor");
       root.hidden = false;
       root.textContent = "";
@@ -1825,6 +1880,7 @@
       kindSelect.setAttribute("aria-label", "Kya likhna hai");
       const tiles = el("div", null, "tiles");
       for (const pair of KINDS) {
+        if (pair[0] === "sale" && !(record && record.id)) continue;
         const tile = el("button", "");
         tile.type = "button";
         tile.className = "tile";
@@ -1833,6 +1889,11 @@
         tile.appendChild(mark);
         tile.appendChild(document.createTextNode(pair[1]));
         tile.addEventListener("click", () => {
+          if (pair[0] === "sale" && !(record && record.id)) {
+            root.hidden = true;
+            showTab("aaj");
+            return;
+          }
           if (kindSelect.value === pair[0]) return;
           kindSelect.value = pair[0];
           kindSelect.dispatchEvent(new Event("change"));
@@ -1921,7 +1982,7 @@
           return found && found.rate_pkr ? String(found.rate_pkr) : "";
         };
         const specs = {
-          milk: [["select", "Waqt", [["am", "Subah"], ["pm", "Shaam"], ["day", "Poora din"]]], ["number", "Kul litre"], ["text", "Gay, agar chahiye"], ["date", "Tareekh"]],
+          milk: [["select", "Waqt", [["am", "Subah"], ["pm", "Shaam"]]], ["number", "Kul litre"], ["text", "Gay, agar chahiye"], ["date", "Tareekh"]],
           sale: [["names", "Grahak", customers], ["number", "Litre"], ["number", "Rate"], ["select", "Paise", [["udhaar", "Udhaar"], ["nagd", "Nagd"]]], ["date", "Tareekh"]],
           payment: [["names", "Grahak", customers], ["number", "Raqam"], ["date", "Tareekh"]],
           customer_adjust: [["names", "Grahak", customers], ["select", "Kisam", [["debit", "Jama / udhaar"], ["credit", "Credit"]]], ["number", "Raqam"], ["text", "Yad"], ["date", "Tareekh"]],
@@ -1946,7 +2007,7 @@
         for (const spec of specs[chosen] || []) {
           const key = ["Gay", "Waqt", "Litre", "Tareekh", "Grahak", "Rate", "Paise", "Kisam", "Raqam", "Note", "Cheez", "Supplier", "Wazan", "Unit", "Qeemat", "Nagd", "Committee", "Halat", "Naam", "Shuru", "Janwar", "Wajah", "Tafseel", "Doctor", "Kharcha", "Roz kitna", "Qisam", "Nasl", "Roz litre", "Phone", "Shuruati baqi", "Supply", "Bill"][nodes.length];
           const valueMap = {
-            milk: [current && (current.session || "day"), current && current.litres, current && current.cow_name !== "kul" ? current.cow_name : "", current && current.date],
+            milk: [current && current.session === "pm" ? "pm" : "am", current && current.litres, current && current.cow_name !== "kul" ? current.cow_name : "", current && current.date],
             sale: [current && current.customer, current && current.litres, current && current.rate_pkr, current && current.cash_received > 0 ? "nagd" : "udhaar", current && current.date],
             payment: [current && current.customer, current && current.amount, current && current.date],
             customer_adjust: [current && current.customer, current && current.direction, current && Math.abs(current.balance_added || current.amount || 0), current && current.note, current && current.date],
