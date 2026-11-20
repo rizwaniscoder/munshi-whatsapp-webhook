@@ -13,6 +13,8 @@ const files = [
   "scripts/test-recorder.js",
   "scripts/test-webapp.js",
   "scripts/test-import-boot.js",
+  "scripts/test-manual.js",
+  "scripts/test-master-phone.js",
 ];
 
 const root = path.join(__dirname, "..");
