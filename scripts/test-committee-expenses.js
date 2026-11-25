@@ -195,10 +195,15 @@ async function main() {
   });
   assert.ok(confirm.includes("Haan") && confirm.includes("Nahi") && /Edit|Tabdeeli/i.test(confirm), confirm);
   assert.ok(confirm.includes(CONFIRM_FOOTER) || /Haan dabain/i.test(confirm));
-  assert.ok(confirm.includes(formatRs(200)) && confirm.includes(formatHumanDate(TODAY)), confirm);
+  assert.ok(confirm.includes(formatRs(200)) && /aaj di/i.test(confirm), confirm);
   assert.ok(/committee/i.test(confirm) && /roz/i.test(confirm), confirm);
   const saved = savedText([{ type: "committee_log", date: TODAY, committee: "Bazar", status: "not_paid", amount: "" }]);
   assert.ok(/Save ho gaya/i.test(saved) && /nahi di/i.test(saved), saved);
+  const paidLine = confirmationText({
+    entries: [{ type: "committee_log", date: TODAY, committee: "Committee", status: "paid", amount: 4000 }],
+  });
+  assert.match(paidLine, /Committee: aaj di Rs 4,000/);
+  assert.doesNotMatch(paidLine, /Committee committee/);
 
   const footer = reminderFooter(
     {

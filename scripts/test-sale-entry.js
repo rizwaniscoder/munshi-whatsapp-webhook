@@ -5,7 +5,8 @@ process.env.WHATSAPP_DRY_RUN = "1";
 delete process.env.ALLOWED_NUMBERS;
 delete process.env.GEMINI_API_KEY;
 
-const { confirmationText, entryLines } = require("../lib/ledger");
+const { confirmationText, entryLines, kulQuestionOnce, hasKulToday } = require("../lib/ledger");
+const { closeCustomers } = require("../lib/sale-money");
 const { setReplyContext, clearReplyContext } = require("../lib/reply");
 const { flattenParsed, buildParsePrompt } = require("../lib/gemini");
 const { deriveSaleEntries } = require("../lib/sale-money");
@@ -108,6 +109,42 @@ const missingCard = roman(() =>
     entries: [{ type: "sale", customer: "Tabarak Hotel", litres: 10, rate_pkr: 180, session: "am" }],
   })
 );
+const zahedRows = [
+  ["name", "rate_pkr"],
+  ["Zahid", 200],
+  ["Zahid Madina Town", 180],
+];
+const zahedHits = closeCustomers("Zahed", zahedRows);
+assert.ok(zahedHits.includes("Zahid"), zahedHits.join(","));
+assert.ok(zahedHits.includes("Zahid Madina Town"), zahedHits.join(","));
+const zahedSale = deriveSaleEntries(
+  [{ type: "sale", customer: "Zahed", litres: 10 }],
+  { customers: zahedRows, text: "Zahed ko 10 litre" }
+)[0];
+assert.strictEqual(zahedSale.ask_which, true);
+assert.strictEqual(zahedSale.customer, "Zahid");
+const zahedLine = roman(() => entryLines([zahedSale]).join("\n"));
+assert.match(zahedLine, /Zahid ya Zahid Madina Town ya naya grahak\?/);
+assert.doesNotMatch(zahedLine, /Naya grahak: Zahed/);
+const freshCard = roman(() => confirmationText({
+  entries: [{ type: "sale", customer: "Mehman", litres: 4, new_customer: true }],
+}));
+assert.match(freshCard, /Naya grahak: Mehman/);
+assert.doesNotMatch(freshCard, /Kul doodh kitna hua/);
+const asked = kulQuestionOnce(
+  [{ type: "sale", customer: "Mehman", litres: 4 }],
+  { hasKul: false, sender: "923000000001", today: "2026-11-25" }
+);
+assert.strictEqual(asked, "\n\nKul doodh kitna hua?");
+assert.strictEqual(kulQuestionOnce(
+  [{ type: "sale", customer: "Mehman", litres: 2 }],
+  { hasKul: false, sender: "923000000001", today: "2026-11-25" }
+), "");
+assert.strictEqual(hasKulToday(
+  [["date", "cow_name", "litres"], ["2026-11-25", "kul", 40]],
+  "2026-11-25"
+), true);
+
 assert.ok(/rate nahi pata/i.test(missingCard), missingCard);
 assert.ok(!/Rs 0 \(nagd\)/.test(missingCard), missingCard);
 assert.ok(!/Rs 0/.test(missingCard), missingCard);
