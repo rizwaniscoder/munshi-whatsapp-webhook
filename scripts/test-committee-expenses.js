@@ -108,7 +108,7 @@ async function main() {
   );
   assert.strictEqual(summary.monthPaid, 1);
   assert.strictEqual(summary.monthMissed, 2);
-  assert.strictEqual(summary.arrears, 400);
+  assert.strictEqual(summary.arrears, 200);
   assert.strictEqual(summary.given, 200);
   assert.strictEqual(summary.todayStatus, "not_paid");
 
@@ -118,6 +118,50 @@ async function main() {
     TODAY
   );
   assert.strictEqual(weekly.arrears, 1000);
+
+  const fuzzy = interpretCommittee("aaj Committee 4000 daily di", {
+    today: TODAY,
+    committees: [{ name: "Committee", amount: 4000, frequency: "daily", start_date: "2026-11-01", status: "active" }],
+  });
+  assert.strictEqual(fuzzy.entries[0].committee, "Committee");
+  assert.ok(!fuzzy.entries.some((entry) => entry.type === "setup_committee"));
+  const full = interpretCommittee("kameti 4000 di", {
+    today: TODAY,
+    committees: [{ name: "Committee", amount: 4000, frequency: "daily", start_date: TODAY, status: "active" }],
+  });
+  assert.strictEqual(full.entries[0].status, "paid");
+  const { finalizeCommitteeEntries } = require("../lib/committee");
+  const received = finalizeCommitteeEntries(
+    [{ type: "committee_log", date: TODAY, committee: "Committee", status: "received", amount: 4000 }],
+    [{ name: "Committee", amount: 4000, frequency: "daily", status: "active" }],
+    TODAY
+  );
+  assert.strictEqual(received.entries[0].status, "paid");
+  assert.ok(!received.entries.some((entry) => entry.status === "received"));
+  const skipped = summarizeCommittee(
+    { name: "Committee", amount: 100, frequency: "daily", start_date: "2026-01-30", skip_31st: true, status: "active" },
+    [],
+    "2026-02-01"
+  );
+  assert.strictEqual(skipped.arrears, 100);
+  const counted = summarizeCommittee(
+    { name: "Committee", amount: 100, frequency: "daily", start_date: "2026-01-30", skip_31st: false, status: "active" },
+    [],
+    "2026-02-01"
+  );
+  assert.strictEqual(counted.arrears, 200);
+  const { remainingLine } = require("../lib/committee");
+  const term = summarizeCommittee(
+    { name: "Committee", amount: 4000, frequency: "daily", start_date: "2026-11-01", total_periods: 100, opening_paid_periods: 29, status: "active" },
+    [{ date: "2026-11-01", committee: "Committee", status: "paid", amount: 4000 }],
+    "2026-11-02"
+  );
+  assert.strictEqual(remainingLine({ amount: 4000, frequency: "daily", total_periods: 100, opening_paid_periods: 29 }, term), "30/100 din, baqi 70 din Rs 280,000");
+  const naya = confirmationText({
+    entries: [{ type: "setup_committee", name: "Committee 4000 daily", amount: 4000, frequency: "daily", new_committee: true }],
+  });
+  assert.ok(/Naya committee/.test(naya));
+  assert.ok(!/Committee Committee/.test(naya));
   assert.strictEqual(weekly.todayStatus, "not_paid");
 
   const data = {

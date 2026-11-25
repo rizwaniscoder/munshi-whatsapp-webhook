@@ -777,6 +777,60 @@ async function main() {
   assert.ok(/payload jsonb/i.test(historySql));
   assert.ok(!/delete\s+from\s+public\.chat_messages/i.test(historySql));
 
+  assert.ok(page.body.includes("Aaj kitne litre?"));
+  assert.ok(page.body.includes("function stickToLatest"));
+  assert.ok(page.body.includes("scrollIntoView"));
+  const quickFarm = await seed(sheets, "923200000888", "Sana");
+  const quickBase = `/r/${quickFarm.token}`;
+  assert.strictEqual((await request(server, "POST", quickBase + "/api/manual", {
+    kind: "customer", name: "Pakistan hotel", rate_pkr: 200, supply_type: "fixed", daily_litres: 2,
+  })).status, 200);
+  assert.strictEqual((await sheets.commitRecords({
+    sender: quickFarm.phone,
+    sheetId: quickFarm.sheetId,
+    sourceNote: "Web " + quickFarm.phone,
+    entries: [{ type: "sale", date: today, customer: "Pakistan hotel", litres: 13, rate_pkr: 200, amount: 2600, cash_received: 0, balance_added: 2600 }],
+  })).ok, true);
+  const detail = await request(server, "GET", quickBase + "/api/party?kind=customer&name=" + encodeURIComponent("Pakistan hotel"));
+  assert.strictEqual(detail.status, 200, detail.body);
+  assert.strictEqual(detail.json.daily_litres, 2);
+  assert.strictEqual(detail.json.today_litres, 13);
+  const quickSale = await request(server, "POST", quickBase + "/api/aaj", {
+    op: "add_sale", customer: "Pakistan hotel", litres: 2, session: "am",
+  });
+  assert.strictEqual(quickSale.status, 200, quickSale.body);
+  assert.ok(quickSale.json.sales.some((row) => row.litres === 13 && row.amount === 2600));
+  assert.ok(quickSale.json.sales.some((row) => row.litres === 2));
+  const againQuick = await request(server, "POST", quickBase + "/api/aaj", {
+    op: "add_sale", customer: "Pakistan hotel", litres: 3, session: "am",
+  });
+  assert.strictEqual(againQuick.json.sales.filter((row) => row.customer === "Pakistan hotel" && row.litres === 13).length, 1);
+  assert.strictEqual(againQuick.json.sales.filter((row) => row.litres === 3).length, 1);
+  assert.strictEqual(againQuick.json.sales.filter((row) => row.litres === 2).length, 0);
+  const afterQuick = await request(server, "GET", quickBase + "/api/party?kind=customer&name=" + encodeURIComponent("Pakistan hotel"));
+  assert.strictEqual(afterQuick.json.today_am, 3);
+  assert.strictEqual(afterQuick.json.today_litres, 16);
+
+  const { applyStockDelta } = require("../lib/feed");
+  const stock = [["item", "quantity", "unit", "daily_use"], ["Silega", 100, "kg", 5]];
+  applyStockDelta(stock, { item: "roti", daily_use: 40, unit: "kg", today: today });
+  applyStockDelta(stock, { item: "chokhar", daily_use: 7, unit: "kg", today: today });
+  applyStockDelta(stock, { item: "silage", daily_use: 8, unit: "kg", today: today });
+  applyStockDelta(stock, { item: "toori", quantity: 3, unit: "kg", today: today });
+  assert.strictEqual(stock.filter((row) => String(row[0]).toLowerCase() === "silega").length, 1);
+  assert.strictEqual(stock.find((row) => String(row[0]).toLowerCase() === "silega")[3], 8);
+  assert.ok(stock.some((row) => row[0] === "roti" && Number(row[3]) === 40));
+  assert.ok(stock.some((row) => row[0] === "chokhar" && Number(row[3]) === 7));
+  assert.ok(stock.some((row) => row[0] === "bhoosa"));
+  assert.ok(!stock.some((row) => String(row[0]).toLowerCase() === "silage" && row !== stock.find((line) => String(line[0]).toLowerCase() === "silega")));
+
+  const { postSaveFooter } = require("../lib/reminders");
+  const footerData = { feed_stock: [["item", "quantity", "unit", "daily_use"], ["wanda", 1, "kg", 2]], committees: [], customers: [], sales: [], payments: [] };
+  const firstFooter = postSaveFooter(footerData, today, "923200000888");
+  assert.match(firstFooter, /Khoraak/);
+  assert.doesNotMatch(firstFooter, /Bill/);
+  assert.strictEqual(postSaveFooter(footerData, today, "923200000888"), "");
+
   server.close();
   console.log("test-manual ok");
 }
