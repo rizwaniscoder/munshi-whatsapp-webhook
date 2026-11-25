@@ -98,6 +98,7 @@ async function main() {
     "20261117120100_munshi_snapshot.sql",
     "20261119000000_fix_snapshot_delete_where.sql",
     "20261120120000_record_history.sql",
+    "20261125160000_committee_term_skip31.sql",
   ]);
   const snapshotFix = fs.readFileSync(path.join(__dirname, "../supabase/migrations/20261119000000_fix_snapshot_delete_where.sql"), "utf8");
   assert.ok(/create or replace function public\.save_ledger_snapshot\(snapshot jsonb, expected_version bigint\)/i.test(snapshotFix));

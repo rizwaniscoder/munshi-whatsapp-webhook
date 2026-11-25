@@ -108,7 +108,9 @@
     .empty { text-align: center; background: white; border-radius: var(--r); padding: 22px 14px; margin-top: 10px; color: var(--muted); }
     .empty strong { display: block; color: var(--ink); margin-bottom: 4px; }
     .cow { display: flex; justify-content: space-between; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
-    .cow, #pane-aaj button { scroll-margin-bottom: calc(96px + env(safe-area-inset-bottom)); }
+    .cow, #pane-aaj button, #text-form, #thread .bubble {
+      scroll-margin-bottom: calc(96px + env(safe-area-inset-bottom));
+    }
     details.fold { margin-top: 8px; }
     details.fold summary { min-height: 48px; display: flex; align-items: center; font-weight: 750; cursor: pointer; }
     .sale-line { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 0.7fr) auto; gap: 8px; align-items: center; }
@@ -810,6 +812,19 @@
       thread.appendChild(bubble);
     }
 
+    function stickToLatest() {
+      const thread = document.getElementById("thread");
+      const composer = document.getElementById("text-form");
+      const last = thread && thread.lastElementChild;
+      if (last && last.scrollIntoView) last.scrollIntoView({ block: "end" });
+      if (composer && composer.scrollIntoView) composer.scrollIntoView({ block: "end" });
+      if (thread) thread.scrollTop = thread.scrollHeight;
+      if (!thread) return;
+      for (const img of thread.querySelectorAll("img")) {
+        if (!img.complete) img.addEventListener("load", stickToLatest, { once: true });
+      }
+    }
+
     async function paintThread(extra) {
       const thread = document.getElementById("thread");
       if (!thread) return;
@@ -836,7 +851,7 @@
         hello.appendChild(el("p", "Bolein, likhein, ya neeche se kaam chunein."));
         thread.appendChild(hello);
       }
-      if (!(extra && extra.before)) thread.scrollTop = thread.scrollHeight;
+      if (!(extra && extra.before)) stickToLatest();
       form.hidden = threadReadOnly;
       const chips = document.getElementById("quick-chips");
       if (chips) chips.hidden = threadReadOnly;
@@ -1136,7 +1151,9 @@
           ["Kul doodh", data.milk_litres + " L"],
           ["Sale", money(saleTotal)],
           ["Wasooli", money(wasool)],
-          over > 0 ? ["Zyada", over + " L"] : ["Bacha", (data.unsold_litres || 0) + " L"],
+          !(Number(data.milk_litres) > 0)
+            ? ["Kul doodh", "Aaj likhein"]
+            : over > 0 ? ["Zyada", over + " L"] : ["Bacha", (data.unsold_litres || 0) + " L"],
         ];
         for (const bit of bits) {
           const cell = el("div");
@@ -1404,6 +1421,46 @@
         actions.appendChild(hist);
         card.appendChild(actions);
         if (kind === "customer") {
+          const quick = el("form", null, "card");
+          quick.appendChild(el("h2", "Aaj kitne litre?"));
+          const logged = [];
+          if (Number(data.today_am) > 0) logged.push("Subah " + data.today_am + " L");
+          if (Number(data.today_pm) > 0) logged.push("Shaam " + data.today_pm + " L");
+          quick.appendChild(el("p", logged.length ? "Aaj likha: " + logged.join(" · ") : "Aaj abhi nahi likha", "muted"));
+          const session = chipPicker([["am", "Subah"], ["pm", "Shaam"]], "am", "seg inline");
+          const qty = input("number", "Litre");
+          qty.classList.add("num-lg");
+          if (Number(data.daily_litres) > 0) qty.value = String(data.daily_litres);
+          const cash = el("button", "Nagd");
+          cash.type = "button";
+          cash.className = "secondary";
+          cash.setAttribute("aria-pressed", "false");
+          cash.addEventListener("click", () => {
+            const on = cash.getAttribute("aria-pressed") !== "true";
+            cash.setAttribute("aria-pressed", on ? "true" : "false");
+            cash.textContent = on ? "Nagd hai" : "Nagd";
+          });
+          quick.appendChild(field("Waqt", session));
+          quick.appendChild(field("Litre", qty));
+          quick.appendChild(cash);
+          const save = el("button", "Likhein");
+          save.type = "submit";
+          save.className = "big";
+          quick.appendChild(save);
+          quick.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            try {
+              await api("aaj", {
+                op: "add_sale",
+                customer: data.name,
+                litres: Number(qty.value),
+                session: session.value,
+                cash: cash.getAttribute("aria-pressed") === "true",
+              });
+              openParty(kind, name);
+            } catch (err) { status.textContent = err.message; }
+          });
+          card.appendChild(quick);
           const litres = input("number", "Rozana litre");
           const fixed = el("button", "Rozana supply");
           fixed.type = "button";
@@ -1804,6 +1861,22 @@
         card.appendChild(el("p", "Kharcha " + money(data.expenses + data.fodder_cost), "tot"));
         card.appendChild(el("p", "Grahak baqi " + money(data.customers_due), "tot"));
         root.appendChild(card);
+        for (const row of data.committees || []) {
+          const bit = el("div", null, "card");
+          bit.appendChild(el("h2", row.name));
+          const when = row.frequency === "weekly" ? "hafte" : row.frequency === "monthly" ? "mahine" : "roz";
+          bit.appendChild(el("p", money(row.amount) + " / " + when + (row.start_date ? " · " + row.start_date : ""), "muted"));
+          if (row.total_periods) bit.appendChild(el("p", "Muddat " + row.total_periods, "muted"));
+          bit.appendChild(el("p", "Ada " + row.paid_periods + " · chhoot " + row.missed + " · baqi " + money(row.arrears)));
+          if (row.remaining) bit.appendChild(el("p", row.remaining, "tot"));
+          if (row.skip_31st) bit.appendChild(el("p", "31 chhora", "muted"));
+          const edit = el("button", "Badlein");
+          edit.type = "button";
+          edit.className = "secondary";
+          edit.addEventListener("click", () => openEditor("committee", row));
+          bit.appendChild(edit);
+          root.appendChild(bit);
+        }
       } catch (err) {
         status.textContent = err.message || "Internet nahi chal raha. Dubara koshish karein.";
       }
@@ -1992,7 +2065,7 @@
           supplier_adjust: [["names", "Supplier", suppliers], ["number", "Raqam"], ["text", "Yad"], ["date", "Tareekh"]],
           expense: [["select", "Kisam", [["labor", "Mazdoori"], ["salary", "Tankhwah"], ["electricity", "Bijli"], ["fuel", "Fuel"], ["medicine", "Dawai"], ["transport", "Kiraya"], ["repairs", "Marammat"], ["kharcha", "Aur kharcha"]]], ["number", "Raqam"], ["text", "Yad"], ["date", "Tareekh"]],
           committee_log: [["names", "Committee", data.committees], ["select", "Halat", [["paid", "Ada diya"], ["not_paid", "Reh gaya"]]], ["number", "Raqam"], ["text", "Yad"], ["date", "Tareekh"]],
-          committee: [["text", "Naam"], ["number", "Raqam"], ["select", "Waqt", [["daily", "Roz"], ["weekly", "Hafte"], ["monthly", "Mahine"]]], ["date", "Shuru"]],
+          committee: [["text", "Naam"], ["number", "Raqam"], ["select", "Waqt", [["daily", "Roz"], ["weekly", "Hafte"], ["monthly", "Mahine"]]], ["date", "Shuru"], ["number", "Muddat"], ["number", "Pehle ada"], ["select", "31", [["false", "31 ginen"], ["true", "31 chhorain"]]]],
           animal: [["names", "Janwar", data.cows], ["select", "Wajah", [["health", "Sehat"], ["vet_visit", "Doctor"], ["breeding", "Nasl"], ["insemination", "Insemination"], ["calving", "Bachcha"]]], ["text", "Tafseel"], ["text", "Doctor"], ["number", "Kharcha"], ["date", "Tareekh"]],
           feed: [["text", "Cheez"], ["number", "Wazan"], ["text", "Unit"], ["number", "Roz kitna"], ["date", "Tareekh"]],
           cow: [["text", "Naam"], ["select", "Qisam", [["cow", "Gay"], ["buffalo", "Bhains"]]], ["text", "Nasl"], ["select", "Halat", [["milking", "Doodh"], ["dry", "Sookha"], ["removed", "Hat gayi"]]], ["number", "Roz litre"]],
@@ -2017,7 +2090,7 @@
             supplier_adjust: [current && current.supplier, current && (current.amount || current.balance_owed), current && current.note, current && current.date],
             expense: [current && current.category, current && current.amount, current && current.note, current && current.date],
             committee_log: [current && current.committee, current && current.status, current && current.amount, current && current.note, current && current.date],
-            committee: [current && current.name, current && current.amount, current && current.frequency, current && current.start_date],
+            committee: [current && current.name, current && current.amount, current && current.frequency, current && current.start_date, current && current.total_periods, current && current.opening_paid_periods, current && current.skip_31st ? "true" : "false"],
             animal: [current && current.cow, current && current.event_type, current && current.details, current && current.doctor_name, current && current.cost_pkr, current && current.date],
             feed: [current && current.item, current && current.quantity, current && current.unit, current && current.daily_use, current && current.date],
             cow: [current && current.name, current && current.animal_type, current && current.breed, current && current.status, current && current.avg_daily_litres],
@@ -2050,7 +2123,7 @@
           if (chosen === "supplier_payment" || chosen === "supplier_adjust") Object.assign(payload, { supplier: read(0), amount: Number(read(1)), note: read(2), date: read(3) });
           if (chosen === "expense") Object.assign(payload, { category: read(0), amount: Number(read(1)), note: read(2), date: read(3) });
           if (chosen === "committee_log") Object.assign(payload, { kind: "committee_log", committee: read(0), name: read(0), status: read(1), amount: Number(read(2)), note: read(3), date: read(4) });
-          if (chosen === "committee") Object.assign(payload, { name: read(0), amount: Number(read(1)), frequency: read(2), start_date: read(3) });
+          if (chosen === "committee") Object.assign(payload, { name: read(0), amount: Number(read(1)), frequency: read(2), start_date: read(3), total_periods: read(4), opening_paid_periods: read(5), skip_31st: read(6) });
           if (chosen === "animal") Object.assign(payload, { cow: read(0), event_type: read(1), details: read(2), doctor_name: read(3), cost_pkr: read(4), date: read(5) });
           if (chosen === "feed") Object.assign(payload, { item: read(0), quantity: Number(read(1)), unit: read(2), daily_use: read(3), date: read(4) });
           if (chosen === "cow") Object.assign(payload, { name: read(0), animal_type: read(1), breed: read(2), status: read(3), avg_daily_litres: read(4) });
