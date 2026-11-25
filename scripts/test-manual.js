@@ -778,6 +778,9 @@ async function main() {
   assert.ok(!/delete\s+from\s+public\.chat_messages/i.test(historySql));
 
   assert.ok(page.body.includes("Aaj kitne litre?"));
+  assert.ok(page.body.includes('logged.push("Aaj likha: " + data.today_litres + " L")'));
+  assert.ok(page.body.includes("bottom: calc(76px + env(safe-area-inset-bottom))"));
+  assert.ok(page.body.includes('!confirmIds.has(action.id)'));
   assert.ok(page.body.includes("function stickToLatest"));
   assert.ok(page.body.includes("scrollIntoView"));
   const quickFarm = await seed(sheets, "923200000888", "Sana");

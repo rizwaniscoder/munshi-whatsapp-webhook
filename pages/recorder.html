@@ -185,8 +185,10 @@
     }
     .composer[hidden], .chips[hidden] { display: none !important; }
     .composer {
-      position: sticky; bottom: 0; display: flex; gap: 8px; align-items: center;
+      position: sticky; bottom: calc(76px + env(safe-area-inset-bottom));
+      display: flex; gap: 8px; align-items: center;
       background: linear-gradient(transparent, var(--paper) 20%); padding: 6px 0 2px; z-index: 4;
+      scroll-margin-bottom: calc(88px + env(safe-area-inset-bottom));
     }
     .composer input { flex: 1; background: white; border-radius: 999px; min-height: 48px; }
     #plus {
@@ -608,8 +610,11 @@
         body.textContent = parts.join("\n\n");
         replyEl.appendChild(body);
       }
-      if (actions.length) {
+      const confirmIds = new Set(["confirm_yes", "confirm_no", "confirm_edit"]);
+      const extraActions = actions.filter((action) => !confirmIds.has(action.id));
+      if (extraActions.length) {
         actionsEl.style.display = "flex";
+        actions = extraActions;
         for (const action of actions) {
           const button = document.createElement("button");
           button.type = "button";
@@ -1424,9 +1429,10 @@
           const quick = el("form", null, "card");
           quick.appendChild(el("h2", "Aaj kitne litre?"));
           const logged = [];
+          if (Number(data.today_litres) > 0) logged.push("Aaj likha: " + data.today_litres + " L");
           if (Number(data.today_am) > 0) logged.push("Subah " + data.today_am + " L");
           if (Number(data.today_pm) > 0) logged.push("Shaam " + data.today_pm + " L");
-          quick.appendChild(el("p", logged.length ? "Aaj likha: " + logged.join(" · ") : "Aaj abhi nahi likha", "muted"));
+          quick.appendChild(el("p", logged.length ? logged.join(" · ") : "Aaj abhi nahi likha", "muted"));
           const session = chipPicker([["am", "Subah"], ["pm", "Shaam"]], "am", "seg inline");
           const qty = input("number", "Litre");
           qty.classList.add("num-lg");
